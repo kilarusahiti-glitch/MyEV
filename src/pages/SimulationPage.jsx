@@ -88,8 +88,34 @@ export default function SimulationPage() {
     transformerLoad,
     systemStatus,
     activeEvCount,
-    controls
+    controls,
+    backendStatus,
+    backendControls,
+    commandStates,
+    commandErrors
   } = useSystemState();
+
+  const backendScenarioMap = {
+    'Solar Peak': 'SOLAR_SURGE',
+    'EV Rush': 'EV_RUSH',
+    'Charger Failure': 'CHARGER_FAULT'
+  };
+  const isBackendLive = backendStatus === 'LIVE';
+  const triggerScenario = (scenarioId) => {
+    const backendScenario = backendScenarioMap[scenarioId];
+    if (isBackendLive && backendScenario) {
+      backendControls.activateScenario(backendScenario);
+      return;
+    }
+    controls.triggerScenario(scenarioId);
+  };
+  const resetSimulation = () => {
+    if (isBackendLive) {
+      backendControls.resetScenario();
+      return;
+    }
+    controls.triggerScenario('Reset Default');
+  };
 
   return (
     <div className="simulation-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -102,7 +128,8 @@ export default function SimulationPage() {
           </p>
         </div>
         <button
-          onClick={() => controls.triggerScenario('Reset Default')}
+          onClick={resetSimulation}
+          disabled={isBackendLive && commandStates['scenario:RESET'] === 'SENDING'}
           className="btn"
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
@@ -278,6 +305,8 @@ export default function SimulationPage() {
               <button
                 onClick={() => controls.setSpeed(0)}
                 className={`btn ${speed === 0 ? 'btn-primary' : 'btn'}`}
+                disabled={isBackendLive}
+                title={isBackendLive ? 'Pause is not exposed by the backend yet' : 'Local demo control'}
                 style={{ flexDirection: 'column', gap: '0.2rem', padding: '0.75rem' }}
               >
                 <Pause size={18} />
@@ -285,17 +314,20 @@ export default function SimulationPage() {
               </button>
 
               <button
-                onClick={() => controls.setSpeed(1)}
+                onClick={() => (isBackendLive ? backendControls.setSpeed(1) : controls.setSpeed(1))}
                 className={`btn ${speed === 1 ? 'btn-primary' : 'btn'}`}
+                disabled={isBackendLive && commandStates['simulator:speed:1'] === 'SENDING'}
                 style={{ flexDirection: 'column', gap: '0.2rem', padding: '0.75rem' }}
               >
                 <Play size={18} />
-                <span style={{ fontSize: '0.75rem' }}>1x Real</span>
+                <span style={{ fontSize: '0.75rem' }}>{commandStates['simulator:speed:1'] === 'SENDING' ? 'Sending...' : '1x Real'}</span>
               </button>
 
               <button
                 onClick={() => controls.setSpeed(2)}
                 className={`btn ${speed === 2 ? 'btn-primary' : 'btn'}`}
+                disabled={isBackendLive}
+                title={isBackendLive ? '2x speed is not exposed by the backend' : 'Local demo control'}
                 style={{ flexDirection: 'column', gap: '0.2rem', padding: '0.75rem' }}
               >
                 <FastForward size={18} />
@@ -305,12 +337,24 @@ export default function SimulationPage() {
               <button
                 onClick={() => controls.setSpeed(5)}
                 className={`btn ${speed === 5 ? 'btn-primary' : 'btn'}`}
+                disabled={isBackendLive}
+                title={isBackendLive ? '5x speed is not exposed by the backend' : 'Local demo control'}
                 style={{ flexDirection: 'column', gap: '0.2rem', padding: '0.75rem' }}
               >
                 <Sparkles size={18} />
                 <span style={{ fontSize: '0.75rem' }}>5x Ultra</span>
               </button>
             </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
+              {isBackendLive
+                ? 'Backend control: 1x speed. Pause, 2x, and 5x are not exposed by the current API.'
+                : 'Local demo controls are active until the backend is live.'}
+            </div>
+            {commandErrors['simulator:speed:1'] && (
+              <div style={{ color: '#b91c1c', fontSize: '0.78rem', marginTop: '0.5rem' }}>
+                {commandErrors['simulator:speed:1']}
+              </div>
+            )}
           </div>
 
           {/* Quick Snapshot Metrics */}
@@ -358,6 +402,12 @@ export default function SimulationPage() {
           <span className="badge badge-info">1-Click Trigger</span>
         </div>
 
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+          {isBackendLive
+            ? 'Backend-connected scenarios: Solar Peak, EV Rush, and Charger Failure. Other presets remain local demo controls.'
+            : 'Backend controls are unavailable. Scenario actions below are local demo controls and do not change backend state.'}
+        </div>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -369,7 +419,9 @@ export default function SimulationPage() {
             return (
               <div
                 key={sc.id}
-                onClick={() => controls.triggerScenario(sc.id)}
+                onClick={() => triggerScenario(sc.id)}
+                role="button"
+                tabIndex={0}
                 style={{
                   padding: '1rem',
                   borderRadius: 'var(--radius-md)',
@@ -392,6 +444,11 @@ export default function SimulationPage() {
             );
           })}
         </div>
+        {(commandErrors['scenario:SOLAR_SURGE'] || commandErrors['scenario:EV_RUSH'] || commandErrors['scenario:CHARGER_FAULT']) && (
+          <div style={{ color: '#b91c1c', fontSize: '0.78rem', marginTop: '0.75rem' }}>
+            Backend command failed. {commandErrors['scenario:SOLAR_SURGE'] || commandErrors['scenario:EV_RUSH'] || commandErrors['scenario:CHARGER_FAULT']}
+          </div>
+        )}
       </div>
     </div>
   );

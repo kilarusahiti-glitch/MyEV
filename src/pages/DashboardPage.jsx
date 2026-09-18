@@ -59,7 +59,11 @@ export default function DashboardPage() {
     isEmergencyMode,
     eventFeed = [],
     organizationMode,
-    controls
+    controls,
+    backendStatus,
+    backendError,
+    backendControls,
+    commandStates
   } = systemState;
 
   const org = getOrgConfig(organizationMode);
@@ -127,7 +131,8 @@ export default function DashboardPage() {
         {/* Donezo Action Buttons: Dark Green Pill + Outlined White Pill */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button 
-            onClick={() => controls.triggerScenario('EV Rush')}
+            onClick={() => backendControls.activateScenario('EV_RUSH')}
+            disabled={backendStatus !== 'LIVE' || commandStates['scenario:EV_RUSH'] === 'SENDING'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -144,7 +149,7 @@ export default function DashboardPage() {
               transition: 'all 0.15s ease'
             }}
           >
-            <span>+ Add EV Simulation</span>
+            <span>{commandStates['scenario:EV_RUSH'] === 'SENDING' ? 'Sending...' : '+ Add EV Simulation'}</span>
           </button>
 
           <button 
@@ -169,6 +174,24 @@ export default function DashboardPage() {
             <span>Judge Demo Tour</span>
           </button>
         </div>
+      </div>
+
+      <div style={{
+        padding: '0.65rem 0.9rem',
+        borderRadius: '10px',
+        border: `1px solid ${backendStatus === 'LIVE' ? '#bbf7d0' : backendStatus === 'OFFLINE' ? '#fecaca' : '#bfdbfe'}`,
+        background: backendStatus === 'LIVE' ? '#f0fdf4' : backendStatus === 'OFFLINE' ? '#fef2f2' : '#eff6ff',
+        color: backendStatus === 'LIVE' ? '#166534' : backendStatus === 'OFFLINE' ? '#991b1b' : '#1e40af',
+        fontSize: '0.8rem',
+        fontWeight: '700'
+      }}>
+        {backendStatus === 'LIVE'
+          ? 'BACKEND LIVE · Dashboard state is receiving authoritative WebSocket updates.'
+          : backendStatus === 'RECONNECTING'
+            ? 'BACKEND RECONNECTING · Showing the last known backend snapshot.'
+            : backendStatus === 'OFFLINE'
+              ? `BACKEND OFFLINE · Showing local demo data. ${backendError || ''}`
+              : 'CONNECTING TO BACKEND · Local demo data is shown until the live snapshot arrives.'}
       </div>
 
       {/* Emergency Mode Alert Banner */}
@@ -196,11 +219,12 @@ export default function DashboardPage() {
             </div>
           </div>
           <button 
-            onClick={() => controls.triggerScenario('Reset Default')}
+            onClick={() => backendControls.resetScenario()}
+            disabled={backendStatus !== 'LIVE' || commandStates['scenario:RESET'] === 'SENDING'}
             className="btn btn-sm"
             style={{ background: '#ffffff', borderColor: '#fca5a5', color: '#991b1b', fontWeight: '700' }}
           >
-            Reset to Normal
+            {commandStates['scenario:RESET'] === 'SENDING' ? 'Resetting...' : 'Reset to Normal'}
           </button>
         </div>
       )}
