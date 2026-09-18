@@ -1,0 +1,8 @@
+{
+  "vehicle": {"vehicle_id": "car-001", "current_soc": 42.0, "target_soc": 80.0, "allocated_power_kw": 70.0, "actual_power_kw": 0.0, "estimated_range_km": 168.0},
+  "charging_session": {"session_id": "session-car-001", "mode": "FAST", "urgent": true},
+  "prediction_summary": null,
+  "charger": {"charger_id": "dc-001", "status": "CONNECTED", "actual_delivered_power_kw": 0.0},
+  "latest_explanation": null,
+  "active_alerts": []
+}

@@ -1,0 +1,11 @@
+{
+  "system_status": {"simulation": {"scenario": "NORMAL", "speed": 1, "mode": "SMART_OPTIMIZER"}},
+  "vehicles": [],
+  "chargers": [],
+  "active_sessions": [],
+  "forecast": null,
+  "active_alerts": [],
+  "recent_explanations": [],
+  "current_scenario": "NORMAL",
+  "simulation_speed": 1
+}

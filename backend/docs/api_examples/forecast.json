@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-01-01T12:00:00Z",
+  "building_load": [{"horizon_minutes": 15, "predicted_value": 49.0, "confidence": 0.5}, {"horizon_minutes": 30, "predicted_value": 49.0, "confidence": 0.4}, {"horizon_minutes": 60, "predicted_value": 49.0, "confidence": 0.25}],
+  "solar_generation": [{"horizon_minutes": 15, "predicted_value": 28.0, "confidence": 0.5}, {"horizon_minutes": 30, "predicted_value": 28.0, "confidence": 0.4}, {"horizon_minutes": 60, "predicted_value": 28.0, "confidence": 0.25}],
+  "tariff": [{"horizon_minutes": 15, "tariff_state": "NORMAL", "confidence": 1.0}],
+  "peak_risk": 0.0,
+  "solar_opportunity": 0.0,
+  "confidence": 0.4
+}
