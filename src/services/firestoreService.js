@@ -19,6 +19,8 @@ let localOrg = { ...INITIAL_ORGANIZATION };
 let localVehicles = [...INITIAL_VEHICLES];
 let localChargers = [...INITIAL_CHARGERS];
 let localTelemetry = null;
+const localProfiles = {};
+const localHistory = [];
 
 export const firestoreService = {
   // Check if active backend is Cloud Firestore or Local Fallback
@@ -120,6 +122,56 @@ export const firestoreService = {
       return { success: true, mode: 'cloud' };
     } catch (err) {
       console.warn('Firestore updateCharger fallback:', err);
+      return { success: true, mode: 'local-fallback' };
+    }
+  },
+
+  async getProfile(userId) {
+    if (!userId) return null;
+    if (!this.isCloudConnected()) return localProfiles[userId] || null;
+    try {
+      const snapshot = await getDoc(doc(db, 'users', userId));
+      return snapshot.exists() ? snapshot.data() : (localProfiles[userId] || null);
+    } catch (err) {
+      console.warn('Firestore getProfile fallback:', err);
+      return localProfiles[userId] || null;
+    }
+  },
+
+  async updateProfile(userId, profile) {
+    if (!userId) return { success: false, mode: 'unavailable' };
+    const value = { ...profile, userId, updatedAt: new Date().toISOString() };
+    localProfiles[userId] = value;
+    if (!this.isCloudConnected()) return { success: true, mode: 'local' };
+    try {
+      await setDoc(doc(db, 'users', userId), value, { merge: true });
+      return { success: true, mode: 'cloud' };
+    } catch (err) {
+      console.warn('Firestore updateProfile fallback:', err);
+      return { success: true, mode: 'local-fallback' };
+    }
+  },
+
+  async saveAuthoritativeSnapshot(snapshot) {
+    localTelemetry = snapshot;
+    if (!this.isCloudConnected()) return { success: true, mode: 'local' };
+    try {
+      await setDoc(doc(db, 'system_snapshots', 'current'), { ...snapshot, updatedAt: new Date().toISOString() }, { merge: true });
+      return { success: true, mode: 'cloud' };
+    } catch (err) {
+      console.warn('Firestore snapshot fallback:', err);
+      return { success: true, mode: 'local-fallback' };
+    }
+  },
+
+  async saveHistoryRecord(record) {
+    localHistory.push(record);
+    if (!this.isCloudConnected()) return { success: true, mode: 'local' };
+    try {
+      await setDoc(doc(db, 'history', String(record.id || record.session_id || Date.now())), { ...record, updatedAt: new Date().toISOString() }, { merge: true });
+      return { success: true, mode: 'cloud' };
+    } catch (err) {
+      console.warn('Firestore history fallback:', err);
       return { success: true, mode: 'local-fallback' };
     }
   },

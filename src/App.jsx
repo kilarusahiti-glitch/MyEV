@@ -11,11 +11,9 @@ import BuildingEnergyPage from './pages/BuildingEnergyPage';
 import GridPage from './pages/GridPage';
 import SolarPage from './pages/SolarPage';
 import SimulationPage from './pages/SimulationPage';
-import SettingsPage from './pages/SettingsPage';
 
 // Optimization & Predictions
 import SmartChargingPage from './pages/SmartChargingPage';
-import AlertsPage from './pages/AlertsPage';
 import PredictionsPage from './pages/PredictionsPage';
 import WhatIfPage from './pages/WhatIfPage';
 import DemandResponsePage from './pages/DemandResponsePage';
@@ -27,9 +25,9 @@ import ChargerHealthPage from './pages/ChargerHealthPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import DigitalTwinPage from './pages/DigitalTwinPage';
 import ChargingCalendarPage from './pages/ChargingCalendarPage';
-import DataSourcesPage from './pages/DataSourcesPage';
 import ReportsPage from './pages/ReportsPage';
 import ParkingLot3DPage from './pages/ParkingLot3DPage';
+import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -48,7 +46,6 @@ export default function App() {
             <Route path="/grid" element={<GridPage />} />
             <Route path="/solar" element={<SolarPage />} />
             <Route path="/simulation" element={<SimulationPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
 
             {/* Optimization */}
             <Route path="/smart-charging" element={<SmartChargingPage />} />
@@ -57,7 +54,6 @@ export default function App() {
             <Route path="/demand-response" element={<DemandResponsePage />} />
 
             {/* Operations */}
-            <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/charger-health" element={<ChargerHealthPage />} />
             <Route path="/chargers" element={<ChargerHealthPage />} />
             <Route path="/digital-twin" element={<DigitalTwinPage />} />
@@ -69,7 +65,7 @@ export default function App() {
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/sustainability" element={<SustainabilityPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/data-sources" element={<DataSourcesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

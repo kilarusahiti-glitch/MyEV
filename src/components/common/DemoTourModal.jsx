@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSystemState } from '../../hooks/useSystemState';
 import { 
   Sparkles, 
   Play, 
@@ -23,9 +22,10 @@ const DEMO_STEPS = [
     title: '1. Baseline Normal Operation',
     targetRoute: '/dashboard',
     scenarioName: 'Normal Operation',
-    tagline: 'Grid 100 kW • Building 61 kW • EV 18 kW • Solar 27 kW',
-    explanation: 'System begins in steady state morning operations. Solar PV generates clean power directly offsetting building base loads, with 8 EVs charging smoothly within safe grid capacity margins.',
-    expectedMetrics: 'Total Grid Load: ~52 kW net (well below 100 kW limit). Transformer at ~58°C nominal.',
+    backendScenario: 'RESET',
+    tagline: 'Backend normal state • Mixed fleet • Safe grid margin',
+    explanation: 'The Python backend starts one virtual cluster with six registered vehicles, five connected sessions, mixed car/scooter/bike hardware, and real delivered charging power.',
+    expectedMetrics: 'Six registered vehicles, five connected sessions, and several vehicles charging within the backend grid budget.',
     actionLabel: 'Set Baseline (Normal)'
   },
   {
@@ -33,9 +33,10 @@ const DEMO_STEPS = [
     title: '2. Evening EV Rush Hour',
     targetRoute: '/smart-charging',
     scenarioName: 'EV Rush',
-    tagline: '18 EVs Plug In Concurrently — Grid Stays Protected',
-    explanation: 'Simulates 18 EVs arriving simultaneously. Without smart charging, aggregate demand would blow past 130 kW, causing substation tripping. SmartCharge Grid optimizer engages instantly: urgent vehicles maintain fast charging while flexible commuters throttle to preserve grid headroom.',
-    expectedMetrics: 'Grid stays clamped at <= 92 kW safe capacity. Zero breaker trips. Urgent departure SOCs protected.',
+    backendScenario: 'EV_RUSH',
+    tagline: 'Additional EVs connect — Grid stays protected',
+    explanation: 'Adds a mixed group of connected EV sessions through the backend. The optimizer reruns and shares constrained capacity while preserving each vehicle and charger limit.',
+    expectedMetrics: 'New sessions appear, allocations change, and the validator keeps the site within its operational limit.',
     actionLabel: 'Trigger EV Rush Scenario'
   },
   {
@@ -43,20 +44,22 @@ const DEMO_STEPS = [
     title: '3. Solar Peak Surplus',
     targetRoute: '/solar',
     scenarioName: 'Solar Peak',
-    tagline: 'Rooftop PV Surges to 38+ kW — Clean Charging Maximized',
+    backendScenario: 'SOLAR_SURGE',
+    tagline: 'Rooftop PV surges — More charging opportunity',
     explanation: 'Rooftop solar irradiance peaks at midday. The optimizer detects clean power surplus and dynamically boosts charging rates for flexible parked EVs, turning EV batteries into a virtual energy sink and avoiding wasted solar curtailment.',
-    expectedMetrics: '100% of generated solar absorbed on-site. EV renewable fraction reaches 84%.',
+    expectedMetrics: 'Backend solar generation and available EV budget increase without a frontend-only calculation.',
     actionLabel: 'Trigger Solar Peak Scenario'
   },
   {
     step: 4,
     title: '4. Critical Grid Overload & Emergency Mode',
     targetRoute: '/dashboard',
-    scenarioName: 'Grid Overload',
+    scenarioName: 'Building Peak',
+    backendScenario: 'BUILDING_PEAK',
     tagline: 'Building Demand Surges — Emergency Mode Sheds Flexible Loads',
-    explanation: 'Severe HVAC/building demand surge pushes total load toward substation danger limits (>95%). The optimizer trips into Emergency Mode: flexible EV charging is immediately halted in <1 second while critical low-SOC vehicles are protected.',
+    explanation: 'A backend building-demand peak reduces the available EV budget. The real optimizer reruns, reducing flexible allocations while preserving validator and grid constraints.',
     expectedMetrics: 'Transformer thermal overload prevented. System recovers to safe operating margins.',
-    actionLabel: 'Trigger Grid Overload Scenario'
+    actionLabel: 'Trigger Building Peak Scenario'
   },
   {
     step: 5,
@@ -80,9 +83,8 @@ const DEMO_STEPS = [
   }
 ];
 
-export default function DemoTourModal({ isOpen, onClose }) {
+export default function DemoTourModal({ isOpen, onClose, backendControls, backendStatus }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const { controls } = useSystemState();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -90,8 +92,8 @@ export default function DemoTourModal({ isOpen, onClose }) {
   const currentStep = DEMO_STEPS[currentStepIndex];
 
   const handleExecuteStep = () => {
-    if (currentStep.scenarioName) {
-      controls.triggerScenario(currentStep.scenarioName);
+    if (currentStep.backendScenario && backendStatus === 'LIVE') {
+      backendControls.activateScenario(currentStep.backendScenario);
     }
     if (currentStep.targetRoute) {
       navigate(currentStep.targetRoute);
@@ -103,7 +105,7 @@ export default function DemoTourModal({ isOpen, onClose }) {
       const nextIdx = currentStepIndex + 1;
       setCurrentStepIndex(nextIdx);
       const next = DEMO_STEPS[nextIdx];
-      if (next.scenarioName) controls.triggerScenario(next.scenarioName);
+      if (next.backendScenario && backendStatus === 'LIVE') backendControls.activateScenario(next.backendScenario);
       if (next.targetRoute) navigate(next.targetRoute);
     } else {
       onClose();
@@ -115,7 +117,7 @@ export default function DemoTourModal({ isOpen, onClose }) {
       const prevIdx = currentStepIndex - 1;
       setCurrentStepIndex(prevIdx);
       const prev = DEMO_STEPS[prevIdx];
-      if (prev.scenarioName) controls.triggerScenario(prev.scenarioName);
+      if (prev.backendScenario && backendStatus === 'LIVE') backendControls.activateScenario(prev.backendScenario);
       if (prev.targetRoute) navigate(prev.targetRoute);
     }
   };
@@ -160,7 +162,7 @@ export default function DemoTourModal({ isOpen, onClose }) {
               key={s.step}
               onClick={() => {
                 setCurrentStepIndex(i);
-                if (s.scenarioName) controls.triggerScenario(s.scenarioName);
+                if (s.backendScenario && backendStatus === 'LIVE') backendControls.activateScenario(s.backendScenario);
                 if (s.targetRoute) navigate(s.targetRoute);
               }}
               style={{

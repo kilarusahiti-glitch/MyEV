@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useSystemState } from '../hooks/useSystemState';
 import { getOrgConfig } from '../data/organizationConfig';
+import { formatPower, formatPercent } from '../utils/formatters';
 import { calculateBilling } from '../services/billingService';
 import MetricCard from '../components/common/MetricCard';
 import PowerFlow from '../components/dashboard/PowerFlow';
-import DemoTourModal from '../components/common/DemoTourModal';
 import { 
   Zap, 
   Building2, 
@@ -19,7 +19,6 @@ import {
   TrendingDown,
   Flame,
   CheckCircle2,
-  Sparkles,
   Receipt,
   Leaf,
   Clock,
@@ -51,6 +50,8 @@ export default function DashboardPage() {
     transformerTemp,
     activeEvCount,
     totalEvCount,
+    connectedEvCount,
+    waitingEvCount,
     systemStatus,
     statusMessage,
     hourlyHistory,
@@ -68,7 +69,6 @@ export default function DashboardPage() {
 
   const org = getOrgConfig(organizationMode);
 
-  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
 
   // Derive dynamic electricity bill estimate
   const bill = useMemo(() => {
@@ -152,27 +152,6 @@ export default function DashboardPage() {
             <span>{commandStates['scenario:EV_RUSH'] === 'SENDING' ? 'Sending...' : '+ Add EV Simulation'}</span>
           </button>
 
-          <button 
-            onClick={() => setIsDemoModalOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              background: '#ffffff',
-              color: '#0f172a',
-              border: '1px solid #cbd5e1',
-              borderRadius: '9999px',
-              padding: '0.65rem 1.25rem',
-              fontSize: '0.84rem',
-              fontWeight: '700',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
-            }}
-          >
-            <Sparkles size={14} color="#16a34a" />
-            <span>Judge Demo Tour</span>
-          </button>
         </div>
       </div>
 
@@ -239,7 +218,7 @@ export default function DashboardPage() {
         <MetricCard
           isHero={true}
           title="Total EV Load"
-          value={evLoad.toFixed(1)}
+          value={formatPower(evLoad)}
           unit="kW"
           icon={Car}
           trend="Increased from last month"
@@ -249,29 +228,29 @@ export default function DashboardPage() {
         {/* CARD 2: Available Capacity */}
         <MetricCard
           title="Available Capacity"
-          value={remainingCapacity.toFixed(1)}
+          value={formatPower(remainingCapacity)}
           unit="kW"
           icon={Zap}
           statusColor="#16a34a"
           trend="Safe Headroom"
-          badgeText="92 kW Cap"
+          badgeText="Backend Budget"
         />
 
         {/* CARD 3: Active EV Fleet */}
         <MetricCard
-          title="Active Fleet"
+          title="Charging Fleet"
           value={`${activeEvCount}`}
           unit={`/ ${totalEvCount}`}
           icon={Car}
           statusColor="#2563eb"
-          trend={`${totalEvCount - activeEvCount} waiting / idle`}
+          trend={`${connectedEvCount} connected · ${waitingEvCount} waiting`}
           badgeText="Smart Scheduled"
         />
 
         {/* CARD 4: Solar Generation */}
         <MetricCard
           title="Solar Generation"
-          value={solarGeneration.toFixed(1)}
+          value={formatPower(solarGeneration)}
           unit="kW"
           icon={Sun}
           statusColor="#d97706"
@@ -313,9 +292,9 @@ export default function DashboardPage() {
               <div style={{ padding: '0.75rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>SAFE HEADROOM</div>
                 <div className="mono" style={{ fontSize: '1.3rem', fontWeight: '800', color: '#10b981' }}>
-                  {remainingCapacity} kW
+                  {formatPower(remainingCapacity)} kW
                 </div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Under 92 kW contract limit</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Under {formatPower(gridLimit)} kW grid limit</div>
               </div>
 
               <div style={{ padding: '0.75rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
@@ -358,7 +337,7 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.35rem' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Transformer Thermal Margin</span>
                   <span className="mono" style={{ fontWeight: '700', color: transformerLoad > 85 ? '#f87171' : '#34d399' }}>
-                    {(100 - transformerLoad).toFixed(1)}% Safe
+                    {formatPercent(100 - transformerLoad)}% Safe
                   </span>
                 </div>
                 <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -547,7 +526,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.06)" />
                 <XAxis dataKey="hour" stroke="#64748b" tick={{ fontSize: 10 }} />
                 <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit=" kW" domain={[0, 110]} />
-                <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', fontSize: '0.75rem' }} />
+                <Tooltip formatter={(value, name) => [formatPower(value), name]} contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '8px', fontSize: '0.75rem' }} />
                 <Legend wrapperStyle={{ fontSize: '0.72rem', paddingTop: '4px' }} />
                 <Area type="monotone" dataKey="buildingLoad" name="Building" stroke="#06b6d4" fill="url(#dashBld)" strokeWidth={1.5} />
                 <Area type="monotone" dataKey="evLoad" name="EVs" stroke="#10b981" fill="url(#dashEv)" strokeWidth={1.5} />
@@ -558,8 +537,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Demo Tour Modal Dialog */}
-      <DemoTourModal isOpen={isDemoModalOpen} onClose={() => setIsDemoModalOpen(false)} />
     </div>
   );
 }

@@ -13,7 +13,7 @@ from app.services.runtime import ApplicationRuntime
 def _allowed_origins() -> list[str]:
     configured = os.getenv(
         "CORS_ALLOW_ORIGINS",
-        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081",
+        "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8081",
     )
     return [origin.strip() for origin in configured.split(",") if origin.strip()]
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower } from '../utils/formatters';
 import MetricCard from '../components/common/MetricCard';
 import { Building2, Activity, Zap, Flame, Calendar, BarChart2, ShieldAlert } from 'lucide-react';
 import {
@@ -71,7 +72,7 @@ export default function BuildingEnergyPage() {
       }}>
         <MetricCard
           title="CURRENT LOAD"
-          value={buildingLoad}
+          value={formatPower(buildingLoad)}
           unit="kW"
           icon={Building2}
           statusColor="#38bdf8"
@@ -134,6 +135,7 @@ export default function BuildingEnergyPage() {
                 <XAxis dataKey="hour" stroke="#64748b" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#64748b" tick={{ fontSize: 11 }} unit=" kW" domain={[0, 90]} />
                 <Tooltip
+                  formatter={(value, name) => [formatPower(value), name]}
                   contentStyle={{
                     backgroundColor: '#111827',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -176,6 +178,7 @@ export default function BuildingEnergyPage() {
                 <XAxis dataKey="hour" stroke="#64748b" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#64748b" tick={{ fontSize: 11 }} unit=" kWh" domain={[0, 90]} />
                 <Tooltip
+                  formatter={(value, name) => [formatPower(value), name]}
                   contentStyle={{
                     backgroundColor: '#111827',
                     border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -204,7 +207,7 @@ export default function BuildingEnergyPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title">Building A Subsystem Load Distribution</span>
-          <span className="mono" style={{ fontSize: '0.8rem', color: '#38bdf8' }}>Total: {buildingLoad} kW</span>
+          <span className="mono" style={{ fontSize: '0.8rem', color: '#38bdf8' }}>Total: {formatPower(buildingLoad)} kW</span>
         </div>
         <div style={{
           display: 'grid',
@@ -221,7 +224,7 @@ export default function BuildingEnergyPage() {
             }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{sub.name}</div>
               <div className="mono" style={{ fontSize: '1.4rem', fontWeight: '700', color: sub.color, margin: '0.25rem 0' }}>
-                {sub.load} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>kW</span>
+                {formatPower(sub.load)} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>kW</span>
               </div>
               <div style={{ width: '100%', height: '4px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
                 <div style={{ width: `${(sub.load / buildingLoad) * 100}%`, height: '100%', background: sub.color }} />

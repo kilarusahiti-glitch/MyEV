@@ -89,3 +89,14 @@ def test_websocket_initial_event() -> None:
         message = websocket.receive_json()
         assert message["type"] == "SYSTEM_UPDATE"
         assert "data" in message
+
+
+def test_calendar_has_labelled_history_and_forecast() -> None:
+    reset_backend()
+    response = client.get("/api/calendar")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["history"]) == 14
+    assert len(payload["forecast"]) == 7
+    assert {item["label"] for item in payload["history"]} == {"SIMULATED HISTORY"}
+    assert {item["label"] for item in payload["forecast"]} == {"FORECAST"}

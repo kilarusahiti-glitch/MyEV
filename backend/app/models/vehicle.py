@@ -6,6 +6,7 @@ from app.vehicle_intelligence.models import SOHSource
 
 class Vehicle(BaseModel):
     id: str = Field(min_length=1)
+    owner_uid: str | None = None
     name: str = Field(min_length=1)
     vehicle_type: VehicleType
     battery_capacity_kwh: float = Field(gt=0)

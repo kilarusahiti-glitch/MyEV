@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useSystemState } from '../hooks/useSystemState';
 import { calculateBilling } from '../services/billingService';
 import { getOrgConfig } from '../data/organizationConfig';
 import { getFacilityConfig } from '../data/facilityConfig';
 import { 
   FileText, 
-  Download, 
   Zap, 
   Car, 
   Sun, 
@@ -381,6 +380,10 @@ export default function ReportsPage() {
       localStorage.setItem('vf_report_history', JSON.stringify(newHistory));
 
       setGeneratedReport({ doc, url, filename, data, entry });
+      const downloadLink = document.createElement('a');
+      downloadLink.href = url;
+      downloadLink.download = filename;
+      downloadLink.click();
     } catch (err) {
       console.error('PDF generation error:', err);
       alert('Report generation failed: ' + err.message);
@@ -388,14 +391,6 @@ export default function ReportsPage() {
       setGenerating(false);
     }
   }, [systemState, selectedType, organizationMode, org.name, reportHistory]);
-
-  const handleDownload = useCallback(() => {
-    if (!generatedReport) return;
-    const link = document.createElement('a');
-    link.href = generatedReport.url;
-    link.download = generatedReport.filename;
-    link.click();
-  }, [generatedReport]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1100px', margin: '0 auto' }}>
@@ -522,17 +517,6 @@ export default function ReportsPage() {
                 )}
               </button>
 
-              {generatedReport && (
-                <button
-                  onClick={handleDownload}
-                  className="btn btn-sm"
-                  style={{ background: '#f0fdf4', color: '#166534', borderColor: '#bbf7d0' }}
-                >
-                  <Download size={15} />
-                  <span>Download PDF</span>
-                </button>
-              )}
-
               {generating && (
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <Loader2 size={13} className="spin" />
@@ -556,10 +540,6 @@ export default function ReportsPage() {
                   <CheckCircle2 size={18} color="#10b981" />
                   <span className="card-title" style={{ color: '#10b981' }}>Report Preview — {generatedReport.entry.reportTitle}</span>
                 </div>
-                <button onClick={handleDownload} className="btn btn-sm btn-primary">
-                  <Download size={14} />
-                  <span>Download PDF</span>
-                </button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
                 <MetricPreview label="Facility" value={generatedReport.data.facilityName} />

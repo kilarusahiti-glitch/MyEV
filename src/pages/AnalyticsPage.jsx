@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower } from '../utils/formatters';
 import { getOrgConfig } from '../data/organizationConfig';
 import { 
   BarChart3, 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower } from '../utils/formatters';
 import { Settings, Play, Zap, Car, Building2, Sun, TrendingDown, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -229,7 +230,7 @@ export default function WhatIfPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#64748b" />
                       <YAxis tick={{ fontSize: 11 }} stroke="#64748b" unit=" kW" />
-                      <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontSize: '0.78rem', color: '#f8fafc' }} />
+                      <Tooltip formatter={(value, name) => [formatPower(value), name]} contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontSize: '0.78rem', color: '#f8fafc' }} />
                       <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
                       <ReferenceLine y={gridLimitVal} stroke="rgba(239,68,68,0.5)" strokeDasharray="5 3" label={{ value: `Limit ${gridLimitVal}kW`, fill: '#f87171', fontSize: 10 }} />
                       <Bar dataKey="building" name="Building Load" fill="#06b6d4" stackId="a" radius={[0,0,0,0]} />

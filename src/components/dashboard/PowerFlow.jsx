@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatPower, formatPercent } from '../../utils/formatters';
 import { Zap, Sun, Building2, Car, Cpu, ArrowDown, ArrowRight, ArrowUpRight } from 'lucide-react';
 import './PowerFlow.css';
 
@@ -37,11 +38,11 @@ export default function PowerFlow({
         </div>
         <div className="flow-header-metrics">
           <div className="flow-badge">
-            <span className="mono text-cyan">{totalLoad} kW</span>
+            <span className="mono text-cyan">{formatPower(totalLoad)} kW</span>
             <span className="flow-sub">Total Load</span>
           </div>
           <div className="flow-badge">
-            <span className="mono text-emerald">{solarGeneration} kW</span>
+            <span className="mono text-emerald">{formatPower(solarGeneration)} kW</span>
             <span className="flow-sub">Solar Gen</span>
           </div>
           <div className="flow-badge">
@@ -63,7 +64,7 @@ export default function PowerFlow({
             <div className="node-content">
               <div className="node-title">MAIN GRID UTILITY</div>
               <div className="node-value mono">{netGridImport} <span className="node-unit">kW</span></div>
-              <div className="node-meta">Contract Limit: {gridLimit} kW</div>
+              <div className="node-meta">Contract Limit: {formatPower(gridLimit)} kW</div>
               <div className="node-bar-track">
                 <div 
                   className="node-bar-fill fill-grid" 
@@ -80,7 +81,7 @@ export default function PowerFlow({
               <span>Real-Time Balance</span>
             </div>
             <div className="bridge-equation mono">
-              {netGridImport}kW (Grid) + {solarGeneration}kW (Solar) = {totalLoad}kW
+              {formatPower(netGridImport)}kW (Grid) + {formatPower(solarGeneration)}kW (Solar) = {formatPower(totalLoad)}kW
             </div>
           </div>
 
@@ -91,7 +92,7 @@ export default function PowerFlow({
             </div>
             <div className="node-content">
               <div className="node-title">ROOFTOP SOLAR PV</div>
-              <div className="node-value mono text-solar">{solarGeneration} <span className="node-unit">kW</span></div>
+              <div className="node-value mono text-solar">{formatPower(solarGeneration)} <span className="node-unit">kW</span></div>
               <div className="node-meta">Array Peak: 40 kWp</div>
               <div className="node-bar-track">
                 <div 
@@ -153,7 +154,7 @@ export default function PowerFlow({
             <div className="node-content">
               <div className="node-title">BUILDING A SUBSTATION & TRANSFORMER</div>
               <div className="node-value mono" style={{ color: getTransformerColor() }}>
-                {transformerLoad}% <span className="node-unit">LOAD</span>
+                {formatPercent(transformerLoad)}% <span className="node-unit">LOAD</span>
               </div>
               <div className="node-meta">
                 Capacity: 100 kVA • {transformerLoad >= 85 ? '⚠️ High Thermal Load' : '🟢 Nominal Operation'}
@@ -194,7 +195,7 @@ export default function PowerFlow({
             </div>
             <div className="node-content">
               <div className="node-title">BUILDING DEMAND (HVAC & BASE)</div>
-              <div className="node-value mono text-cyan">{buildingLoad} <span className="node-unit">kW</span></div>
+              <div className="node-value mono text-cyan">{formatPower(buildingLoad)} <span className="node-unit">kW</span></div>
               <div className="node-meta">{( (buildingLoad / totalLoad) * 100 ).toFixed(0)}% of total load</div>
               <div className="node-bar-track">
                 <div 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower } from '../utils/formatters';
 import MetricCard from '../components/common/MetricCard';
 import { Sun, Zap, CloudSun, Leaf, Compass, ArrowUpRight, Battery, Sparkles } from 'lucide-react';
 import {
@@ -138,7 +139,7 @@ export default function SolarPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className="mono" style={{ fontSize: '0.8rem', color: '#facc15' }}>
-              Current: {simTime} ({solarGeneration} kW)
+              Current: {simTime} ({formatPower(solarGeneration)} kW)
             </span>
           </div>
         </div>
@@ -156,6 +157,7 @@ export default function SolarPage() {
               <XAxis dataKey="hour" stroke="#64748b" tick={{ fontSize: 11 }} />
               <YAxis stroke="#64748b" tick={{ fontSize: 11 }} unit=" kW" domain={[0, 45]} />
               <Tooltip
+                formatter={(value, name) => [formatPower(value), name]}
                 contentStyle={{
                   backgroundColor: '#111827',
                   border: '1px solid rgba(255, 255, 255, 0.12)',

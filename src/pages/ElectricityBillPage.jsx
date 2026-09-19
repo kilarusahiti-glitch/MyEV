@@ -131,7 +131,7 @@ export default function ElectricityBillPage() {
             </span>
             <Zap size={18} color="#facc15" />
           </div>
-          <div className="mono" style={{ fontSize: '1.8rem', fontWeight: '800', color: '#f8fafc' }}>
+          <div className="mono" style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)' }}>
             {bill.totalConsumption}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>

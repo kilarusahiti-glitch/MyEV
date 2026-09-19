@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower, formatPercent } from '../utils/formatters';
 import MetricCard from '../components/common/MetricCard';
 import DecisionExplanation from '../components/common/DecisionExplanation';
 import {
@@ -10,7 +11,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
-import { calculatePriorityScore, calculateDepartureRisk } from '../services/optimizationEngine';
 
 function GridStressIndicator({ stress }) {
   const bars = ['LOW', 'WATCH', 'HIGH', 'CRITICAL'];
@@ -39,6 +39,7 @@ function GridStressIndicator({ stress }) {
 }
 
 function PriorityBadge({ score }) {
+  if (typeof score !== 'number') return <span className="mono" style={{ color: 'var(--text-muted)' }}>N/A</span>;
   const level = score >= 75 ? 'HIGH' : score >= 45 ? 'MEDIUM' : 'LOW';
   const color = score >= 75 ? '#f87171' : score >= 45 ? '#fbbf24' : '#34d399';
   return (
@@ -57,36 +58,26 @@ function PriorityBadge({ score }) {
 
 export default function SmartChargingPage() {
   const {
-    vehicles, chargers, buildingLoad, solarGeneration, evLoad,
+    vehicles, buildingLoad, solarGeneration,
     gridLimit, gridUtilization, safeEVCapacity, isEmergencyMode,
-    gridStress, optimizationResult, optimizationLog,
-    transformerLoad, electricityTariff, simHour, simMinute,
+    gridStress, optimizationResult, optimizationLog, gridImport, tariffLevel,
+    evLoad,
+    backendStatus,
+    backendControls, commandStates,
+    transformerLoad, electricityTariff, backendSystemStatus,
     controls
   } = useSystemState();
 
   const [filter, setFilter] = useState('ALL');
 
-  // Enrich vehicles with optimizer data
-  const enrichedVehicles = vehicles.map(ev => {
-    const optResult = optimizationResult.find(r => r.id === ev.id);
-    const priorityScore = optResult?.priorityScore ?? calculatePriorityScore(ev, { simHour, simMinute, chargers });
-    const depRisk = calculateDepartureRisk(ev, simHour, simMinute);
-    const charger = chargers.find(c => c.id === ev.chargerId);
-    return {
-      ...ev,
-      priorityScore,
-      depRisk,
-      allocatedPower: optResult?.allocatedPower ?? ev.chargingPower,
-      reason: optResult?.reason || '',
-      chargerStatus: charger?.status || 'online'
-    };
-  });
+  // Values are normalized backend results. This page does not calculate charging decisions.
+  const enrichedVehicles = backendStatus === 'LIVE' ? vehicles : [];
 
   const chargingVehicles = enrichedVehicles.filter(v =>
-    filter === 'ALL' ? (v.status === 'Charging' || v.status === 'Waiting') :
+    filter === 'ALL' ? (v.status === 'Charging' || v.status === 'Waiting' || v.status === 'Paused') :
     filter === 'CHARGING' ? v.status === 'Charging' :
     filter === 'WAITING' ? v.status === 'Waiting' :
-    filter === 'RISK' ? !v.depRisk.onTrack :
+    filter === 'RISK' ? v.feasibility?.feasible_by_deadline === false :
     true
   ).sort((a, b) => b.priorityScore - a.priorityScore);
 
@@ -101,12 +92,17 @@ export default function SmartChargingPage() {
       priority: v.priorityScore
     }));
 
-  const totalAllocated = enrichedVehicles.reduce((s, v) => s + v.allocatedPower, 0);
+  const totalAllocated = optimizationResult.reduce((sum, decision) => sum + (decision.allocated_power_kw || 0), 0);
   const utilizationPct = safeEVCapacity > 0 ? (totalAllocated / safeEVCapacity) * 100 : 0;
-  const atRiskCount = enrichedVehicles.filter(v => !v.depRisk.onTrack && v.status !== 'Completed').length;
+  const atRiskCount = enrichedVehicles.filter(v => v.feasibility?.feasible_by_deadline === false && v.status !== 'Completed').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {backendStatus !== 'LIVE' && (
+        <div className="card" style={{ borderColor: '#fbbf24', color: '#fbbf24' }}>
+          LOCAL DEMO PREVIEW: backend-authoritative charging decisions are unavailable.
+        </div>
+      )}
       {/* Emergency Mode Banner */}
       {isEmergencyMode && (
         <div style={{
@@ -123,10 +119,38 @@ export default function SmartChargingPage() {
               Grid at {gridUtilization.toFixed(0)}% capacity. Flexible EV charging suspended. Only critical-departure EVs protected.
             </div>
           </div>
-          <button className="btn btn-sm" onClick={() => controls.triggerScenario('Reset Default')}
+          <button className="btn btn-sm" onClick={() => backendStatus === 'LIVE' ? backendControls.resetScenario() : controls.triggerScenario('Reset Default')}
+            disabled={backendStatus === 'LIVE' && commandStates['scenario:RESET'] === 'SENDING'}
             style={{ borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}>
             Reset Baseline
           </button>
+        </div>
+      )}
+
+      {backendStatus === 'LIVE' && backendSystemStatus && (
+        <div className="card" style={{ borderColor: backendSystemStatus.optimization?.validator_valid ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.5)' }}>
+          <div className="card-header">
+            <span className="card-title">Authoritative Safety Checks</span>
+            <span className={`badge ${backendSystemStatus.optimization?.validator_valid ? 'badge-success' : 'badge-danger'}`}>
+              {backendSystemStatus.optimization?.validator_valid ? 'GRID SAFE' : 'VALIDATION FAILED'}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginTop: '0.75rem', fontSize: '0.78rem' }}>
+            {[
+              ['Grid limit', `${formatPower(gridLimit)} kW`],
+              ['Current import', `${formatPower(gridImport)} kW`],
+              ['Building load', `${formatPower(buildingLoad)} kW`],
+              ['Solar generation', `${formatPower(solarGeneration)} kW`],
+              ['Actual EV load', `${formatPower(evLoad)} kW`],
+              ['Available EV budget', `${formatPower(safeEVCapacity)} kW`],
+              ['Total allocated', `${formatPower(totalAllocated)} kW`]
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                <span className="mono" style={{ fontWeight: '700' }}>{value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -138,13 +162,13 @@ export default function SmartChargingPage() {
           unit="kW"
           icon={Zap}
           statusColor="#3b82f6"
-          subtitle={`${gridLimit - buildingLoad > 0 ? (gridLimit - buildingLoad).toFixed(0) : 0} kW after building load`}
+          subtitle="Backend-calculated grid, transformer, solar, and reserve headroom"
           badgeText={isEmergencyMode ? 'EMERGENCY' : 'SAFE'}
           badgeVariant={isEmergencyMode ? 'danger' : 'info'}
         />
         <MetricCard
           title="ALLOCATED EV POWER"
-          value={totalAllocated.toFixed(1)}
+          value={formatPower(totalAllocated)}
           unit="kW"
           icon={Car}
           progress={utilizationPct}
@@ -160,11 +184,11 @@ export default function SmartChargingPage() {
           progress={gridUtilization}
           progressColor={gridUtilization > 85 ? 'var(--danger)' : gridUtilization > 75 ? 'var(--warning)' : '#3b82f6'}
           statusColor={gridUtilization > 85 ? '#f87171' : '#38bdf8'}
-          subtitle={`${totalAllocated.toFixed(1)} kW EV + ${buildingLoad.toFixed(1)} kW building`}
+          subtitle={`${formatPower(totalAllocated)} kW EV + ${formatPower(buildingLoad)} kW building`}
         />
         <MetricCard
           title="SOLAR OFFSET"
-          value={solarGeneration.toFixed(1)}
+          value={formatPower(solarGeneration)}
           unit="kW"
           icon={Sun}
           statusColor="#facc15"
@@ -183,13 +207,13 @@ export default function SmartChargingPage() {
         />
         <MetricCard
           title="TRANSFORMER"
-          value={transformerLoad.toFixed(0)}
+          value={transformerLoad == null ? 'N/A' : transformerLoad.toFixed(0)}
           unit="%"
           icon={Cpu}
-          progress={transformerLoad}
+          progress={transformerLoad == null ? 0 : transformerLoad}
           progressColor={transformerLoad > 85 ? 'var(--danger)' : '#8b5cf6'}
           statusColor="#8b5cf6"
-          subtitle={`${(100 - transformerLoad).toFixed(1)}% thermal headroom`}
+          subtitle={transformerLoad == null ? 'Backend value unavailable' : `${formatPercent(100 - transformerLoad)}% thermal headroom`}
         />
       </div>
 
@@ -209,10 +233,10 @@ export default function SmartChargingPage() {
 
           <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {[
-              { label: 'Building Load', val: buildingLoad.toFixed(1), unit: 'kW', color: '#38bdf8' },
-              { label: 'EV Load', val: totalAllocated.toFixed(1), unit: 'kW', color: '#34d399' },
-              { label: 'Solar Offset', val: `-${solarGeneration.toFixed(1)}`, unit: 'kW', color: '#facc15' },
-              { label: 'Net Grid Import', val: Math.max(0, buildingLoad + totalAllocated - solarGeneration).toFixed(1), unit: 'kW', color: '#a855f7' }
+              { label: 'Building Load', val: formatPower(buildingLoad), unit: 'kW', color: '#38bdf8' },
+              { label: 'Actual EV Load', val: formatPower(evLoad), unit: 'kW', color: '#34d399' },
+              { label: 'Solar Offset', val: `-${formatPower(solarGeneration)}`, unit: 'kW', color: '#facc15' },
+              { label: 'Net Grid Import', val: gridImport == null ? 'N/A' : formatPower(gridImport), unit: gridImport == null ? '' : 'kW', color: '#a855f7' }
             ].map(item => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
@@ -224,7 +248,7 @@ export default function SmartChargingPage() {
           </div>
 
           <div style={{ marginTop: '1rem', padding: '0.6rem', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            💡 Safe EV Budget = min(Grid − Building, 88% Transformer − Building)
+            Backend budget includes grid, transformer, solar, and reserve constraints.
           </div>
         </div>
 
@@ -242,7 +266,7 @@ export default function SmartChargingPage() {
                 <YAxis tick={{ fontSize: 10 }} stroke="#64748b" unit=" kW" domain={[0, 8]} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', fontSize: '0.78rem', color: '#f8fafc' }}
-                  formatter={(val, name) => [`${val} kW`, 'Allocated']}
+                  formatter={(val, name) => [`${formatPower(val)} kW`, 'Allocated']}
                 />
                 <ReferenceLine y={7.4} stroke="rgba(239,68,68,0.4)" strokeDasharray="4 4" label={{ value: 'Max 7.4kW', fill: '#f87171', fontSize: 10 }} />
                 <Bar dataKey="power" radius={[4, 4, 0, 0]}>
@@ -292,7 +316,7 @@ export default function SmartChargingPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', marginTop: '0.75rem' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['EV', 'Status', 'Priority Score', 'Current SOC', 'Allocated Power', 'Recommended', 'Departure', 'ETA', 'Departure Risk'].map(h => (
+                {['EV', 'Status', 'Priority Score', 'Current SOC', 'Allocated Power', 'Actual Power', 'Effective Max', 'Departure', 'ETA', 'Departure Risk'].map(h => (
                   <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: '600', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -324,12 +348,17 @@ export default function SmartChargingPage() {
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem' }}>
                     <span className="mono" style={{ fontWeight: '700', color: '#38bdf8', fontSize: '0.9rem' }}>
-                      {ev.allocatedPower.toFixed(1)} kW
+                      {formatPower(ev.allocatedPower)} kW
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.6rem 0.75rem' }}>
+                    <span className="mono" style={{ fontWeight: '700', color: ev.actualChargingPower > 0 ? '#34d399' : 'var(--text-muted)', fontSize: '0.9rem' }}>
+                      {formatPower(ev.actualChargingPower)} kW
                     </span>
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem' }}>
                     <span className="mono" style={{ color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
-                      {ev.depRisk.recommendedPower > 0 ? `${ev.depRisk.recommendedPower.toFixed(1)} kW` : '—'}
+                      {ev.effectiveMaxPower != null ? `${ev.effectiveMaxPower.toFixed(1)} kW max` : '—'}
                     </span>
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem' }}>
@@ -377,18 +406,13 @@ export default function SmartChargingPage() {
             <div style={{ fontWeight: '600', fontSize: '0.85rem' }}>Current Electricity Tariff</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Time-of-Use pricing active</div>
           </div>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            {[
-              { label: 'Off-Peak (10pm–8am)', rate: '$0.12/kWh', active: simHour < 8 || simHour >= 22 },
-              { label: 'Mid-Peak (8am–5pm)', rate: '$0.22/kWh', active: simHour >= 8 && simHour < 17 },
-              { label: 'Peak (5pm–9pm)', rate: '$0.34/kWh', active: simHour >= 17 && simHour < 21 }
-            ].map(t => (
-              <div key={t.label} style={{ textAlign: 'center', opacity: t.active ? 1 : 0.4 }}>
-                <div className="mono" style={{ fontSize: '1rem', fontWeight: '700', color: t.active ? '#facc15' : 'var(--text-secondary)' }}>{t.rate}</div>
-                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{t.label}</div>
-                {t.active && <div style={{ width: '100%', height: '2px', background: '#facc15', borderRadius: '2px', marginTop: '0.2rem' }} />}
-              </div>
-            ))}
+          <div style={{ textAlign: 'right' }}>
+            <div className="mono" style={{ fontSize: '1rem', fontWeight: '700', color: '#facc15' }}>
+              {electricityTariff == null ? 'Unavailable' : `${electricityTariff} / kWh`}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              {tariffLevel || 'Backend tariff unavailable'}
+            </div>
           </div>
         </div>
       </div>

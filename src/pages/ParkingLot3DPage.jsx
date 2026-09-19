@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, Suspense, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useRef, Suspense, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,13 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { useSystemState } from '../hooks/useSystemState';
 import {
   PARKING_SPACES,
-  EV_PARKING_MAP,
-  PARKING_EV_MAP,
   getStatusConfig,
-  getCarVariant,
-  getFacilityParkingSpaces
+  getCarVariant
 } from '../data/parkingLotConfig';
-import EVDetailDrawer from '../components/ev/EVDetailDrawer';
+import { formatDistance, formatPercent, formatPower } from '../utils/formatters';
 import {
   Car, Zap, Battery, Clock, ArrowLeft,
   RefreshCw, Maximize2, Grid3X3, Layers3,
@@ -26,11 +23,11 @@ import {
 const FILTER_OPTIONS = ['All', 'Charging', 'Paused', 'Waiting', 'Completed', 'Empty'];
 
 const DEMO_SCENARIOS = [
-  { name: 'Normal Operation', label: 'Normal', icon: CheckCircle2, color: '#16a34a' },
-  { name: 'EV Rush', label: 'EV Rush', icon: Car, color: '#2563eb' },
-  { name: 'Grid Overload', label: 'Grid Stress', icon: Flame, color: '#dc2626' },
-  { name: 'Solar Peak', label: 'Solar Peak', icon: Sun, color: '#d97706' },
-  { name: 'Emergency Mode', label: 'Emergency', icon: ShieldAlert, color: '#991b1b' },
+  { name: 'NORMAL', label: 'Normal', icon: CheckCircle2, color: '#16a34a' },
+  { name: 'EV_RUSH', label: 'EV Rush', icon: Car, color: '#2563eb' },
+  { name: 'BUILDING_PEAK', label: 'Grid Stress', icon: Flame, color: '#dc2626' },
+  { name: 'SOLAR_SURGE', label: 'Solar Peak', icon: Sun, color: '#d97706' },
+  { name: 'CHARGER_FAULT', label: 'Charger Fault', icon: ShieldAlert, color: '#991b1b' },
 ];
 
 // Rich curated automotive metallic palettes
@@ -534,7 +531,8 @@ function ParkingSlotAssembly({
   const isOccupied   = !!ev;
   const isCharging   = ev?.status === 'Charging';
   const isPaused     = ev?.status === 'Paused';
-  const isComplete   = ev?.status === 'Completed';
+  const isComplete   = ev?.status === 'Completed' || ev?.status === 'Target reached';
+  const isFaulted    = ev?.status === 'Faulted';
   const statusCfg    = ev ? getStatusConfig(ev.status) : getStatusConfig('Empty');
 
   const variant  = ev ? getCarVariant(ev.id) : 0;
@@ -572,11 +570,11 @@ function ParkingSlotAssembly({
 
       {/* EV Charger Kiosk */}
       {charger && (
-        <ChargerKiosk
+          <ChargerKiosk
           x={chargerX}
           z={chargerZ}
           status={charger.status}
-          isCharging={isCharging}
+            isCharging={isCharging && !isFaulted}
         />
       )}
 
@@ -659,10 +657,10 @@ function ParkingSlotAssembly({
                   {ev.id}
                 </span>
                 <span style={{ color: statusCfg.color, fontWeight: 700, fontSize: '10px' }}>
-                  {isCharging ? `${(ev.chargingPower || 7.2).toFixed(1)} kW` : statusCfg.label}
+                  {isCharging ? `${formatPower(ev.allocatedPower)} kW` : statusCfg.label}
                 </span>
                 <span style={{ color: '#64748b', fontSize: '9px', fontWeight: 600 }}>
-                  {Math.round(ev.currentSoc ?? ev.battery ?? 50)}%
+                  {formatPercent(ev.currentSoc)}%
                 </span>
               </div>
             </Html>
@@ -740,7 +738,7 @@ function SolarRooftopCanopy({ solarGeneration = 0 }) {
       {/* Active Solar Holographic Sign */}
       {isSolarGenerating && (
         <Text position={[-0.5, 3.35, 0]} fontSize={0.28} color="#16a34a" anchorX="center" fontWeight={800}>
-          ☀ SOLAR CANOPY ({solarGeneration.toFixed(1)} kW)
+          ☀ SOLAR CANOPY ({formatPower(solarGeneration)} kW)
         </Text>
       )}
     </group>
@@ -810,17 +808,20 @@ function FullParkingScene({
   solarGeneration,
   evLoad
 }) {
-  const vehicleMap = useMemo(() => {
-    const m = {};
-    (vehicles || []).forEach(v => { m[v.id] = v; });
-    return m;
-  }, [vehicles]);
-
   const chargerMap = useMemo(() => {
     const m = {};
     (chargers || []).forEach(c => { m[c.id] = c; });
     return m;
   }, [chargers]);
+
+  const vehicleBySpace = useMemo(() => {
+    const placements = {};
+    (vehicles || []).forEach((vehicle, index) => {
+      const space = PARKING_SPACES[index];
+      if (space) placements[space.id] = vehicle;
+    });
+    return placements;
+  }, [vehicles]);
 
   return (
     <>
@@ -850,9 +851,8 @@ function FullParkingScene({
 
       {/* All 20 Parking Spaces */}
       {PARKING_SPACES.map((space) => {
-        const evId       = PARKING_EV_MAP[space.id];
-        const ev         = evId ? vehicleMap[evId] : null;
-        const charger    = chargerMap[space.chargerId] || null;
+        const ev         = vehicleBySpace[space.id] || null;
+        const charger    = ev?.chargerId ? chargerMap[ev.chargerId] || null : null;
         const isSelected = selectedId === space.id;
         const isHovered  = hoveredId === space.id;
 
@@ -964,12 +964,14 @@ function DetailDrawer({ selection, onClose, navigate }) {
           {/* Key Telemetry Rows */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
             {[
-              { icon: <Battery size={14} color="#16a34a" />, label: 'Current Battery', value: `${Math.round(ev.currentSoc ?? ev.battery ?? 0)}%` },
-              { icon: <Battery size={14} color="#3b82f6" />, label: 'Target Battery', value: `${ev.targetSoc ?? ev.targetBattery ?? 80}%` },
-              { icon: <Zap size={14} color="#f59e0b" />, label: 'Charging Power', value: `${(ev.chargingPower ?? 0).toFixed(1)} kW` },
-              { icon: <Clock size={14} color="#6366f1" />, label: 'Scheduled Departure', value: ev.departureTime || '17:30' },
-              { icon: <Activity size={14} color="#ec4899" />, label: 'Optimizer Priority', value: ev.priority || 'NORMAL' },
-              { icon: <Clock size={14} color="#14b8a6" />, label: 'Est. Completion', value: ev.estimatedCompletion || '14:20' },
+              { icon: <Battery size={14} color="#16a34a" />, label: 'Current Battery', value: `${formatPercent(ev.currentSoc)}%` },
+              { icon: <Battery size={14} color="#3b82f6" />, label: 'Target Battery', value: ev.targetSoc == null ? '—' : `${formatPercent(ev.targetSoc)}%` },
+              { icon: <Zap size={14} color="#f59e0b" />, label: 'Allocated Power', value: `${formatPower(ev.allocatedPower)} kW` },
+              { icon: <Zap size={14} color="#34d399" />, label: 'Actual Power', value: `${formatPower(ev.actualChargingPower)} kW` },
+              { icon: <Clock size={14} color="#6366f1" />, label: 'Scheduled Departure', value: ev.departureTime || '—' },
+              { icon: <Activity size={14} color="#ec4899" />, label: 'Optimizer Priority', value: ev.priority || '—' },
+              { icon: <Clock size={14} color="#14b8a6" />, label: 'Est. Completion', value: ev.estimatedCompletion || '—' },
+              { icon: <Gauge size={14} color="#0ea5e9" />, label: 'Estimated Range', value: `${formatDistance(ev.estimatedRange)} km` },
             ].map(({ icon, label, value }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: '#64748b' }}>
@@ -985,7 +987,7 @@ function DetailDrawer({ selection, onClose, navigate }) {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: '0.35rem' }}>
               <span>Battery Status</span>
-              <span>{Math.round(ev.currentSoc ?? ev.battery ?? 0)}%</span>
+              <span>{formatPercent(ev.currentSoc)}%</span>
             </div>
             <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{
@@ -1087,9 +1089,13 @@ export default function ParkingLot3DPage() {
     evLoad = 0,
     remainingCapacity = 0,
     solarGeneration = 0,
-    activeScenario = 'Normal Operation',
-    controls
+    activeScenario = 'NORMAL',
+    backendStatus,
+    backendControls,
+    commandStates
   } = systemState;
+
+  const liveVehicles = backendStatus === 'LIVE' ? vehicles : [];
 
   const [selectedSpace, setSelectedSpace] = useState(null);
   const [hoveredId,     setHoveredId]     = useState(null);
@@ -1098,8 +1104,8 @@ export default function ParkingLot3DPage() {
   const controlsRef = useRef();
 
   const totalSpaces  = PARKING_SPACES.length;
-  const occupied     = vehicles?.length || 0;
-  const charging     = vehicles?.filter(v => v.status === 'Charging').length || 0;
+  const occupied     = liveVehicles.length;
+  const charging     = liveVehicles.filter(v => v.status === 'Charging').length;
   const notCharging  = occupied - charging;
   const empty        = Math.max(0, totalSpaces - occupied);
 
@@ -1200,7 +1206,8 @@ export default function ParkingLot3DPage() {
             return (
               <button
                 key={sc.name}
-                onClick={() => controls.triggerScenario(sc.name)}
+                onClick={() => backendControls.activateScenario(sc.name)}
+                disabled={backendStatus !== 'LIVE' || commandStates[`scenario:${sc.name}`] === 'SENDING'}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1355,15 +1362,15 @@ export default function ParkingLot3DPage() {
           <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '0.75rem', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
               <span style={{ color: '#64748b' }}>Total EV Load:</span>
-              <span style={{ fontWeight: 800, color: '#16a34a' }}>{(evLoad || 0).toFixed(1)} kW</span>
+              <span style={{ fontWeight: 800, color: '#16a34a' }}>{formatPower(evLoad)} kW</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
               <span style={{ color: '#64748b' }}>Grid Headroom:</span>
-              <span style={{ fontWeight: 800, color: '#0f172a' }}>{(remainingCapacity || 0).toFixed(1)} kW</span>
+              <span style={{ fontWeight: 800, color: '#0f172a' }}>{formatPower(remainingCapacity)} kW</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
               <span style={{ color: '#d97706' }}>☀ Solar Output:</span>
-              <span style={{ fontWeight: 800, color: '#d97706' }}>{(solarGeneration || 0).toFixed(1)} kW</span>
+              <span style={{ fontWeight: 800, color: '#d97706' }}>{formatPower(solarGeneration)} kW</span>
             </div>
           </div>
         </div>
@@ -1431,7 +1438,7 @@ export default function ParkingLot3DPage() {
         >
           <Suspense fallback={null}>
             <FullParkingScene
-              vehicles={vehicles}
+              vehicles={liveVehicles}
               chargers={chargers}
               selectedId={selectedSpace?.space?.id}
               hoveredId={hoveredId}
@@ -1454,6 +1461,8 @@ export default function ParkingLot3DPage() {
         </Canvas>
 
         {/* Interactive Detail Slideout Panel (Requirement #11 & #12) */}
+        {backendStatus !== 'LIVE' && <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', zIndex: 20, padding: '0.75rem 1rem', border: '1px solid #fca5a5', background: '#fff1f2', color: '#991b1b', borderRadius: '8px', fontWeight: 700 }}>BACKEND OFFLINE · LOCAL 3D VEHICLES HIDDEN</div>}
+
         {selectedSpace && (
           <DetailDrawer
             selection={selectedSpace}

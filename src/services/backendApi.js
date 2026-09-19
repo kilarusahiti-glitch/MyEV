@@ -24,6 +24,10 @@ async function requestJson(path, options = {}) {
 export const backendApi = {
   health: () => requestJson('/health'),
   getDashboard: () => requestJson('/api/dashboard'),
+  getForecast: () => requestJson('/api/forecast'),
+  getVehiclePrediction: (vehicleId) => requestJson(`/api/vehicles/${encodeURIComponent(vehicleId)}/prediction`),
+  getSessionHistory: () => requestJson('/api/history/sessions'),
+  getTrips: () => requestJson('/api/trips'),
   activateScenario: (scenario) => requestJson(`/api/scenarios/${encodeURIComponent(scenario)}/activate`, { method: 'POST' }),
   resetScenario: () => requestJson('/api/scenarios/reset', { method: 'POST' }),
   simulatorStep: (seconds = 1) => requestJson(`/api/simulator/step?seconds=${encodeURIComponent(seconds)}`, { method: 'POST' }),

@@ -11,7 +11,7 @@ class ScenarioManager:
     def __init__(
         self,
         engine: SimulationEngine,
-        building_peak_offset_kw: float = 23.0,
+        building_peak_offset_kw: float = 35.0,
         solar_surge_multiplier: float = 1.8,
         fault_charger_id: str | None = None,
     ) -> None:

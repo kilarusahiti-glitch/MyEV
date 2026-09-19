@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatNumber } from '../../utils/formatters';
 
 export default function MetricCard({
   title,
@@ -61,7 +62,7 @@ export default function MetricCard({
 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', margin: '0.6rem 0' }}>
           <span style={{ fontSize: '2.2rem', fontWeight: '800', lineHeight: 1, letterSpacing: '-0.02em' }}>
-            {value}
+            {typeof value === 'number' ? formatNumber(value) : value}
           </span>
           {unit && (
             <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#86efac' }}>
@@ -142,7 +143,7 @@ export default function MetricCard({
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem', margin: '0.6rem 0' }}>
         <span style={{ fontSize: '2.1rem', fontWeight: '800', color: '#0f172a', lineHeight: 1, letterSpacing: '-0.02em' }}>
-          {value}
+          {typeof value === 'number' ? formatNumber(value) : value}
         </span>
         {unit && (
           <span style={{ fontSize: '0.92rem', fontWeight: '600', color: '#64748b' }}>

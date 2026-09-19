@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSystemState } from '../hooks/useSystemState';
 import { getOrgConfig } from '../data/organizationConfig';
+import { formatPower, formatPercent, formatTemperature } from '../utils/formatters';
 import { 
   Zap, 
   Cpu, 
@@ -147,9 +148,9 @@ export default function DigitalTwinPage() {
                 </div>
                 <div style={{ fontWeight: '800', fontSize: '1rem', color: '#f8fafc' }}>UTILITY GRID</div>
                 <div className="mono" style={{ fontSize: '1.25rem', fontWeight: '900', color: gridStatus.color, marginTop: '0.2rem' }}>
-                  {totalLoad} kW
+                  {formatPower(totalLoad)} kW
                 </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ceiling: {gridLimit} kW ({gridUtilization}%)</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ceiling: {formatPower(gridLimit)} kW ({formatPercent(gridUtilization)}%)</div>
                 <span className={`badge badge-${gridStatus.status === 'CRITICAL' ? 'danger' : gridStatus.status === 'WARNING' ? 'warning' : 'success'}`} style={{ marginTop: '0.5rem', fontSize: '0.68rem' }}>
                   {gridStatus.label}
                 </span>
@@ -176,7 +177,7 @@ export default function DigitalTwinPage() {
                 </div>
                 <div style={{ fontWeight: '800', fontSize: '1rem', color: '#f8fafc' }}>SOLAR PV ARRAY</div>
                 <div className="mono" style={{ fontSize: '1.25rem', fontWeight: '900', color: '#facc15', marginTop: '0.2rem' }}>
-                  {solarGeneration} kW
+                  {formatPower(solarGeneration)} kW
                 </div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>40 kWp Rooftop System</div>
                 <span className="badge badge-warning" style={{ marginTop: '0.5rem', fontSize: '0.68rem' }}>
@@ -214,7 +215,7 @@ export default function DigitalTwinPage() {
               </div>
               <div style={{ fontWeight: '800', fontSize: '1rem', color: '#f8fafc' }}>SUBSTATION TRANSFORMER</div>
               <div className="mono" style={{ fontSize: '1.25rem', fontWeight: '900', color: transformerStatus.color, marginTop: '0.2rem' }}>
-                {transformerLoad}% Load • {transformerTemp.toFixed(1)}°C
+                {formatPercent(transformerLoad)}% Load • {formatTemperature(transformerTemp)}°C
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>100 kVA Step-down (11kV → 415V 3-Phase)</div>
               <span className={`badge badge-${transformerStatus.status === 'CRITICAL' ? 'danger' : transformerStatus.status === 'WARNING' ? 'warning' : 'success'}`} style={{ marginTop: '0.5rem', fontSize: '0.68rem' }}>
@@ -248,7 +249,7 @@ export default function DigitalTwinPage() {
               </div>
               <div style={{ fontWeight: '800', fontSize: '1rem', color: '#f8fafc' }}>BUILDING MAIN FEEDER</div>
               <div className="mono" style={{ fontSize: '1.25rem', fontWeight: '900', color: '#38bdf8', marginTop: '0.2rem' }}>
-                {buildingLoad} kW Base Load
+                {formatPower(buildingLoad)} kW Base Load
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>HVAC, Lighting & Common Services</div>
               <span className="badge badge-info" style={{ marginTop: '0.5rem', fontSize: '0.68rem' }}>
@@ -291,10 +292,10 @@ export default function DigitalTwinPage() {
                       {ev.chargerId}
                     </div>
                     <div className="mono" style={{ fontSize: '0.85rem', fontWeight: '700', color: isCharging ? '#34d399' : isOffline ? '#ef4444' : '#64748b', marginTop: '0.25rem' }}>
-                      {isOffline ? 'OFFLINE' : isCharging ? `${ev.chargingPower} kW` : 'WAITING'}
+                      {isOffline ? 'OFFLINE' : isCharging ? `${formatPower(ev.chargingPower)} kW` : 'WAITING'}
                     </div>
                     <div style={{ fontSize: '0.65rem', color: '#38bdf8', marginTop: '0.15rem' }}>
-                      SOC: {Math.round(ev.currentSoc)}%
+                      SOC: {formatPercent(ev.currentSoc)}%
                     </div>
                   </div>
                 );
@@ -322,19 +323,19 @@ export default function DigitalTwinPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>CURRENT LOAD</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{totalLoad} kW</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{formatPower(totalLoad)} kW</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>SAFE CEILING</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#f8fafc' }}>{gridLimit} kW</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#f8fafc' }}>{formatPower(gridLimit)} kW</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>LINE VOLTAGE</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#34d399' }}>{voltage} V</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#34d399' }}>{formatPower(voltage)} V</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>TOTAL CURRENT</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{current} A</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{formatPower(current)} A</div>
                 </div>
               </div>
               <div style={{ padding: '0.75rem', borderRadius: '4px', background: `${gridStatus.color}15`, border: `1px solid ${gridStatus.color}40`, fontSize: '0.78rem' }}>
@@ -352,15 +353,15 @@ export default function DigitalTwinPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>TRANSFORMER LOAD</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: transformerStatus.color }}>{transformerLoad}%</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: transformerStatus.color }}>{formatPercent(transformerLoad)}%</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>TOP-OIL TEMP</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: transformerTemp > 65 ? '#ef4444' : '#34d399' }}>{transformerTemp.toFixed(1)}°C</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: transformerTemp > 65 ? '#ef4444' : '#34d399' }}>{formatTemperature(transformerTemp)}°C</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>THERMAL MARGIN</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{(100 - transformerLoad).toFixed(1)}%</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{formatPercent(100 - transformerLoad)}%</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>FREQUENCY</div>
@@ -382,7 +383,7 @@ export default function DigitalTwinPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>ACTIVE GENERATION</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{solarGeneration} kW</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{formatPower(solarGeneration)} kW</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>NAMEPLATE RATING</div>
@@ -409,7 +410,7 @@ export default function DigitalTwinPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>BASE DEMAND</div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#06b6d4' }}>{buildingLoad} kW</div>
+                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#06b6d4' }}>{formatPower(buildingLoad)} kW</div>
                 </div>
                 <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>HVAC FRACTION</div>
@@ -433,15 +434,15 @@ export default function DigitalTwinPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>ALLOCATED POWER</div>
-                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#10b981' }}>{ev.chargingPower} kW</div>
+                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#10b981' }}>{formatPower(ev.chargingPower)} kW</div>
                   </div>
                   <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>CURRENT / TARGET SOC</div>
-                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{Math.round(ev.currentSoc)}% / {ev.targetSoc}%</div>
+                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#38bdf8' }}>{formatPercent(ev.currentSoc)}% / {formatPercent(ev.targetSoc)}%</div>
                   </div>
                   <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>ENERGY NEEDED</div>
-                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{ev.energyRequired} kWh</div>
+                    <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: '#facc15' }}>{formatPower(ev.energyRequired)} kWh</div>
                   </div>
                   <div style={{ padding: '0.65rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>DEPARTURE TIME</div>

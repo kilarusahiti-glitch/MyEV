@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import StatusBadge from '../common/StatusBadge';
+import { formatPower, formatPercent } from '../../utils/formatters';
 import { Search, Filter, BatteryCharging, Zap, Clock, ChevronRight } from 'lucide-react';
 
 export default function EVTable({ vehicles, onSelectVehicle, selectedVehicleId }) {
@@ -122,10 +123,10 @@ export default function EVTable({ vehicles, onSelectVehicle, selectedVehicleId }
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                         <span className="mono" style={{ fontWeight: '700', color: socColor }}>
-                          {Math.round(ev.currentSoc)}%
+                          {formatPercent(ev.currentSoc)}%
                         </span>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
-                          {ev.batteryCapacity} kWh
+                          {formatPower(ev.batteryCapacity)} kWh
                         </span>
                       </div>
                       <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '3px', overflow: 'hidden' }}>
@@ -160,7 +161,7 @@ export default function EVTable({ vehicles, onSelectVehicle, selectedVehicleId }
                   {/* Charging Power */}
                   <td>
                     <span className="mono" style={{ fontWeight: '700', color: ev.chargingPower > 0 ? '#38bdf8' : 'var(--text-muted)' }}>
-                      {ev.chargingPower.toFixed(1)} kW
+                      {formatPower(ev.chargingPower)} kW
                     </span>
                   </td>
 

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useSystemState } from '../../hooks/useSystemState';
-import { getOrgConfig } from '../../data/organizationConfig';
 import {
   LayoutDashboard,
   Car,
@@ -10,23 +8,19 @@ import {
   Cpu,
   Sun,
   TrendingUp,
-  AlertTriangle,
   BatteryCharging,
   FlaskConical,
   Sparkles,
   Receipt,
   BarChart3,
   Leaf,
-  Settings,
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
   CalendarDays,
   Network,
   FileText,
-  Radio,
   Layers3,
-  Smartphone,
   CheckSquare,
   HelpCircle,
   LogOut
@@ -59,21 +53,11 @@ const NAV_GROUPS = [
       { path: '/reports', label: 'Reports', icon: FileText },
       { path: '/simulation', label: 'Simulation', icon: FlaskConical, badge: 'ACTIVE' },
     ]
-  },
-  {
-    title: 'GENERAL',
-    items: [
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/alerts', label: 'Alerts', icon: AlertTriangle },
-      { path: '/data-sources', label: 'Data Sources', icon: Radio },
-    ]
   }
 ];
 
 export default function Sidebar({ isMobileOpen, setIsMobileOpen }) {
   const [collapsed, setCollapsed] = useState(false);
-  const { organizationMode, gridLimit } = useSystemState();
-  const org = getOrgConfig(organizationMode);
 
   return (
     <>
@@ -152,28 +136,6 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }) {
         </nav>
 
         {/* Bottom Banner Card — Donezo App Promo Style */}
-        {!collapsed ? (
-          <div className="sidebar-promo-container">
-            <div className="sidebar-promo-card">
-              <div className="sidebar-promo-icon">
-                <Smartphone size={16} color="#4ade80" />
-              </div>
-              <div className="sidebar-promo-title">Download our Mobile App</div>
-              <div className="sidebar-promo-sub">Get telemetry in your pocket</div>
-              <a 
-                href="#download" 
-                onClick={(e) => { e.preventDefault(); alert("Mobile Companion App APK will download shortly."); }}
-                className="sidebar-promo-btn"
-              >
-                Download
-              </a>
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '0.75rem', textAlign: 'center' }}>
-            <span className="status-dot pulse" style={{ background: '#16a34a', margin: 'auto' }} />
-          </div>
-        )}
       </aside>
     </>
   );

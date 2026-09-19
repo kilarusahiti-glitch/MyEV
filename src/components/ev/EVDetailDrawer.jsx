@@ -1,5 +1,6 @@
 import React from 'react';
 import StatusBadge from '../common/StatusBadge';
+import { formatPower, formatPercent } from '../../utils/formatters';
 import EV3DViewer from './EV3DViewer';
 import { 
   X, 
@@ -129,7 +130,7 @@ export default function EVDetailDrawer({
             </svg>
             <div style={{ position: 'absolute', textAlign: 'center' }}>
               <span className="mono" style={{ fontSize: '1.6rem', fontWeight: '800', color: socColor }}>
-                {Math.round(vehicle.currentSoc)}%
+                {formatPercent(vehicle.currentSoc)}%
               </span>
               <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current SOC</div>
             </div>
@@ -159,7 +160,7 @@ export default function EVDetailDrawer({
               <span>Charging Power</span>
             </div>
             <div className="mono" style={{ fontSize: '1.15rem', fontWeight: '700', color: vehicle.chargingPower > 0 ? '#38bdf8' : 'var(--text-muted)' }}>
-              {vehicle.chargingPower.toFixed(1)} kW
+              {formatPower(vehicle.chargingPower)} kW
             </div>
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
               Max: {vehicle.maxChargingPower} kW

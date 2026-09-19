@@ -1,267 +1,31 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CalendarDays, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { useSystemState } from '../hooks/useSystemState';
-import { getOrgConfig } from '../data/organizationConfig';
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Car, 
-  Zap, 
-  Users, 
-  CheckCircle2, 
-  AlertCircle, 
-  ChevronRight, 
-  Sun, 
-  Moon,
-  TrendingUp
-} from 'lucide-react';
+import { backendApi } from '../services/backendApi';
+import { formatEnergy, formatPower, formatPercent } from '../utils/formatters';
+
+const DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const keyOf = (value) => { const date = value instanceof Date ? value : new Date(value); return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`; };
+const dateText = (key, options) => new Date(`${key}T00:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', ...options });
 
 export default function ChargingCalendarPage() {
-  const { vehicles, simHour, organizationMode } = useSystemState();
-  const org = getOrgConfig(organizationMode);
-
-  const [selectedDay, setSelectedDay] = useState('today'); // 'today' | 'tomorrow'
-
-  // Construct structured hourly schedule from vehicles and expected arrivals
-  const scheduleSlots = useMemo(() => {
-    return [
-      {
-        time: '06:00 AM',
-        hour: 6,
-        type: 'departure',
-        evs: vehicles.filter(v => v.id === 'EV-01' || v.departureTime === '06:00' || v.departureTime === '06:30'),
-        label: 'Early Commuter Departures',
-        expectedCount: 1,
-        demandKw: 7.2,
-        notes: 'EV-01 departure guaranteed (100% SOC target met).'
-      },
-      {
-        time: '07:00 AM',
-        hour: 7,
-        type: 'departure',
-        evs: vehicles.filter(v => v.id === 'EV-04' || v.departureTime === '07:00' || v.departureTime === '07:30'),
-        label: 'Morning Rush Departures',
-        expectedCount: 2,
-        demandKw: 14.4,
-        notes: 'EV-04 departing for airport route.'
-      },
-      {
-        time: '08:00 AM',
-        hour: 8,
-        type: 'departure',
-        evs: vehicles.filter(v => v.id === 'EV-07' || v.departureTime === '08:00' || v.departureTime === '08:30'),
-        label: 'Peak Morning Departures',
-        expectedCount: 3,
-        demandKw: 21.6,
-        notes: 'EV-07 and departmental shuttles departing.'
-      },
-      {
-        time: '12:00 PM',
-        hour: 12,
-        type: 'solar-window',
-        evs: vehicles.filter(v => v.status === 'Charging').slice(0, 4),
-        label: 'Solar Peak Absorption Window',
-        expectedCount: 6,
-        demandKw: 28.0,
-        notes: 'Flexible EVs ramped to absorb 35+ kW rooftop solar generation.'
-      },
-      {
-        time: '06:00 PM',
-        hour: 18,
-        type: 'arrival',
-        evs: vehicles.slice(0, 12),
-        label: 'Evening Arrival Surge',
-        expectedCount: 12,
-        demandKw: 42.0,
-        notes: '12 EVs expected — smart charging queue will prioritize low SOCs.'
-      },
-      {
-        time: '07:00 PM',
-        hour: 19,
-        type: 'arrival',
-        evs: vehicles.slice(0, 18),
-        label: 'Peak Return & Charging Wave',
-        expectedCount: 18,
-        demandKw: 58.0,
-        notes: '18 EVs expected — throttled during residential cooking peak.'
-      },
-      {
-        time: '11:00 PM',
-        hour: 23,
-        type: 'off-peak',
-        evs: vehicles.slice(0, 8),
-        label: 'Off-Peak Night Charging Window',
-        expectedCount: 8,
-        demandKw: 36.0,
-        notes: 'Lowest tariff slab (₹4.20/kWh) active. Heavy bulk charging resumes.'
-      }
-    ];
-  }, [vehicles]);
-
-  return (
-    <div className="charging-calendar-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1200px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem' }}>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: '800' }}>EV Charging Demand Calendar</h1>
-            <span className="badge badge-info">Departure & Arrival Schedule</span>
-          </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-            Predictive timeline of scheduled EV departures, expected return rushes, and optimized charging windows for <strong>{org.name}</strong>.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button 
-            className={`btn btn-sm ${selectedDay === 'today' ? 'btn-primary' : ''}`}
-            onClick={() => setSelectedDay('today')}
-          >
-            Today's Schedule
-          </button>
-          <button 
-            className={`btn btn-sm ${selectedDay === 'tomorrow' ? 'btn-primary' : ''}`}
-            onClick={() => setSelectedDay('tomorrow')}
-          >
-            Tomorrow's Outlook
-          </button>
-        </div>
-      </div>
-
-      {/* Highlights Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        <div className="card" style={{ border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>
-            MORNING DEPARTURES (6–8 AM)
-          </div>
-          <div className="mono" style={{ fontSize: '1.8rem', fontWeight: '800', color: '#10b981', marginTop: '0.2rem' }}>
-            EV-01, 04, 07
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            100% departure guarantee locked
-          </div>
-        </div>
-
-        <div className="card" style={{ border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>
-            EVENING COMMUTER RUSH (6–7 PM)
-          </div>
-          <div className="mono" style={{ fontSize: '1.8rem', fontWeight: '800', color: '#f59e0b', marginTop: '0.2rem' }}>
-            18 EVs Expected
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Peak shaving throttling scheduled
-          </div>
-        </div>
-
-        <div className="card" style={{ border: '1px solid rgba(6, 182, 212, 0.3)' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>
-            CLEAN SOLAR WINDOW (12–2 PM)
-          </div>
-          <div className="mono" style={{ fontSize: '1.8rem', fontWeight: '800', color: '#38bdf8', marginTop: '0.2rem' }}>
-            ~35 kW Solar Direct
-          </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Surplus matched to flexible chargers
-          </div>
-        </div>
-      </div>
-
-      {/* Hourly Schedule Timeline Cards */}
-      <div className="card">
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Clock size={18} className="text-cyan" />
-            <span className="card-title">Future Charging Demand & Slot Allocation</span>
-          </div>
-          <span className="badge badge-info">24-Hour Plan</span>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-          {scheduleSlots.map((slot) => {
-            const isPast = slot.hour < simHour;
-            const isCurrent = slot.hour === simHour;
-
-            return (
-              <div 
-                key={slot.time}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '120px 1fr 180px',
-                  gap: '1.25rem',
-                  alignItems: 'center',
-                  padding: '1.25rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: isCurrent ? 'rgba(6, 182, 212, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                  border: isCurrent ? '2px solid #06b6d4' : '1px solid var(--border)',
-                  opacity: isPast ? 0.6 : 1,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {/* Time & Badge */}
-                <div>
-                  <div className="mono" style={{ fontSize: '1.2rem', fontWeight: '800', color: isCurrent ? '#38bdf8' : '#f8fafc' }}>
-                    {slot.time}
-                  </div>
-                  <span className={`badge badge-${slot.type === 'departure' ? 'success' : slot.type === 'arrival' ? 'warning' : 'purple'}`} style={{ fontSize: '0.68rem', marginTop: '0.25rem' }}>
-                    {slot.type.toUpperCase()}
-                  </span>
-                  {isCurrent && (
-                    <div style={{ fontSize: '0.68rem', color: '#38bdf8', fontWeight: '700', marginTop: '0.2rem' }}>
-                      ● CURRENT TIME
-                    </div>
-                  )}
-                </div>
-
-                {/* Demand Details & EV Badges */}
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: '#f8fafc' }}>
-                    {slot.label}
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
-                    {slot.notes}
-                  </div>
-
-                  {/* EV Pills */}
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
-                    {slot.evs.slice(0, 6).map(ev => (
-                      <span 
-                        key={ev.id}
-                        style={{
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '4px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          fontSize: '0.72rem',
-                          fontFamily: 'monospace',
-                          color: '#38bdf8'
-                        }}
-                      >
-                        {ev.id} ({ev.chargerId})
-                      </span>
-                    ))}
-                    {slot.evs.length > 6 && (
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
-                        +{slot.evs.length - 6} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Load Metric */}
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>EXPECTED FLEET</div>
-                  <div className="mono" style={{ fontSize: '1.4rem', fontWeight: '900', color: slot.type === 'arrival' ? '#fbbf24' : '#34d399' }}>
-                    {slot.expectedCount} EVs
-                  </div>
-                  <div className="mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    ~{slot.demandKw} kW demand
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+  const { backendStatus, backendSystemStatus } = useSystemState();
+  const currentKey = backendSystemStatus?.simulation?.simulated_time ? keyOf(backendSystemStatus.simulation.simulated_time) : null;
+  const [month, setMonth] = useState(() => new Date(backendSystemStatus?.simulation?.simulated_time || Date.now()));
+  const [selectedKey, setSelectedKey] = useState(currentKey);
+  const [calendar, setCalendar] = useState({ history: [], forecast: [] });
+  const [trips, setTrips] = useState([]);
+  useEffect(() => { if (backendStatus !== 'LIVE') return undefined; let cancelled = false; Promise.all([backendApi.getCalendar(), backendApi.getTrips()]).then(([data, planned]) => { if (!cancelled) { setCalendar(data); setTrips(planned); } }).catch(() => { if (!cancelled) setCalendar({ history: [], forecast: [] }); }); return () => { cancelled = true; }; }, [backendStatus]);
+  useEffect(() => { if (currentKey) { setSelectedKey((value) => value || currentKey); setMonth(new Date(`${currentKey}T00:00:00Z`)); } }, [currentKey]);
+  const history = calendar.history || [], forecast = calendar.forecast || [];
+  const byDate = useMemo(() => Object.fromEntries([...history, ...forecast].map((item) => [item.date, item])), [history, forecast]);
+  const days = useMemo(() => { const year = month.getUTCFullYear(), index = month.getUTCMonth(), first = new Date(Date.UTC(year, index, 1)), total = new Date(Date.UTC(year, index + 1, 0)).getUTCDate(); const cells = Array(first.getUTCDay()).fill(null); for (let day = 1; day <= total; day += 1) cells.push(keyOf(new Date(Date.UTC(year, index, day)))); while (cells.length % 7) cells.push(null); return cells; }, [month]);
+  const selected = selectedKey ? byDate[selectedKey] : null;
+  const selectedType = selectedKey === currentKey ? 'LIVE SIMULATION' : selected?.kind || (selectedKey < (currentKey || '') ? 'HISTORY' : 'FORECAST');
+  if (backendStatus !== 'LIVE') return <div className="card"><h1>Simulation Calendar</h1><p>BACKEND OFFLINE. Calendar history and forecast data are unavailable.</p></div>;
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1200px' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}><div><h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Simulation Calendar</h1><p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Backend-owned simulated history, live state, and forecast projection.</p></div><div style={{ display: 'flex', gap: '0.4rem' }}><button className="btn btn-sm" onClick={() => setMonth(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() - 1, 1)))} title="Previous month"><ChevronLeft size={15} /></button><button className="btn btn-sm" onClick={() => currentKey && (setMonth(new Date(`${currentKey}T00:00:00Z`)), setSelectedKey(currentKey))}><RotateCcw size={14} /> Today</button><button className="btn btn-sm" onClick={() => setMonth(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1)))} title="Next month"><ChevronRight size={15} /></button></div></div>
+    <div className="card"><div className="card-header"><span className="card-title"><CalendarDays size={15} /> {dateText(keyOf(month), { month: 'long', year: 'numeric' })}</span><span className="badge badge-info">{history.length} history days · {forecast.length} forecast days</span></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '0.35rem', marginTop: '1rem' }}>{DAY_NAMES.map((day) => <div key={day} style={{ padding: '0.4rem', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 700, textAlign: 'center' }}>{day}</div>)}{days.map((key, index) => { const record = key && byDate[key]; const live = key === currentKey; const planned = key && trips.some((trip) => keyOf(trip.departure_time) === key); return <button key={`${key || 'empty'}-${index}`} disabled={!key} onClick={() => key && setSelectedKey(key)} style={{ minHeight: '70px', border: key === selectedKey ? '2px solid #0891b2' : '1px solid var(--border)', borderRadius: '6px', background: live ? 'rgba(6,182,212,0.12)' : 'transparent', color: key ? 'var(--text-primary)' : 'transparent', textAlign: 'left', padding: '0.45rem', cursor: key ? 'pointer' : 'default' }}><strong>{key ? Number(key.slice(-2)) : ''}</strong>{live && <div style={{ color: '#0891b2', fontSize: '0.62rem' }}>LIVE</div>}{record?.kind === 'HISTORY' && <div style={{ color: '#34d399', fontSize: '0.62rem' }}>HISTORY</div>}{record?.kind === 'FORECAST' && <div style={{ color: '#d97706', fontSize: '0.62rem' }}>FORECAST</div>}{planned && <div style={{ color: '#d97706', fontSize: '0.62rem' }}>PLANNED</div>}</button>; })}</div></div>
+    <section className="card"><div className="card-header"><span className="card-title">{selectedKey ? dateText(selectedKey, { month: 'long', day: 'numeric' }) : 'Select a date'}</span><span className={`badge ${selectedType.includes('HISTORY') ? 'badge-success' : selectedType.includes('LIVE') ? 'badge-info' : 'badge-warning'}`}>{selectedType}</span></div>{selectedType.includes('LIVE') ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.8rem', marginTop: '1rem' }}>{[['Building', `${formatPower(backendSystemStatus.site?.building_load_kw)} kW`], ['Solar', `${formatPower(backendSystemStatus.site?.solar_generation_kw)} kW`], ['EV load', `${formatPower(backendSystemStatus.site?.ev_load_kw)} kW`], ['Grid import', `${formatPower(backendSystemStatus.site?.grid_import_kw)} kW`], ['Charging', backendSystemStatus.counts?.charging_vehicles ?? 0]].map(([label, value]) => <div key={label}><div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{label}</div><strong className="mono">{value}</strong></div>)}</div> : selected ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem', marginTop: '1rem' }}>{selected.kind === 'HISTORY' ? [['EV energy', `${formatEnergy(selected.building_energy_kwh)} kWh`], ['Solar energy', `${formatEnergy(selected.solar_energy_kwh)} kWh`], ['Peak grid import', `${formatPower(selected.peak_grid_import_kw)} kW`], ['Completed sessions', selected.completed_sessions]] : [['Peak building', `${formatPower(selected.peak_building_kw)} kW`], ['Expected solar', `${formatPower(selected.expected_solar_kw)} kW`], ['EV capacity', `${formatPower(selected.available_ev_capacity_kw)} kW`], ['Peak risk', `${formatPercent(selected.peak_risk * 100)}%`], ['Solar opportunity', `${formatPercent(selected.solar_opportunity * 100)}%`]].map(([label, value]) => <div key={label}><div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{label}</div><strong className="mono">{value}</strong></div>)}</div> : <p style={{ color: 'var(--text-muted)', marginTop: '1rem' }}>No data recorded for this date.</p>}</section>
+  </div>;
 }

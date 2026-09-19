@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSystemState } from '../hooks/useSystemState';
+import { formatPower, formatPercent, formatTemperature } from '../utils/formatters';
 import MetricCard from '../components/common/MetricCard';
 import { 
   Zap, 
@@ -79,7 +80,7 @@ export default function GridPage() {
               {isCritical ? 'CRITICAL: Substation Capacity & Thermal Limit Exceeded' : 'WARNING: Approaching Grid Contract Capacity (>85%)'}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Current load is {totalLoad} kW against a {gridLimit} kW contract ceiling. Peak penalties and transformer thermal wear apply if sustained.
+              Current load is {formatPower(totalLoad)} kW against a {formatPower(gridLimit)} kW contract ceiling. Peak penalties and transformer thermal wear apply if sustained.
             </div>
           </div>
         </div>
@@ -181,7 +182,7 @@ export default function GridPage() {
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Load %</div>
             <div className="mono" style={{ fontSize: '2rem', fontWeight: '800', color: getStatusColor(transformerLoad), margin: '0.35rem 0' }}>
-              {transformerLoad}%
+              {formatPercent(transformerLoad)}%
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Rated Capacity: {transformerLimit} kVA
@@ -203,7 +204,7 @@ export default function GridPage() {
               <span>Core Temperature</span>
             </div>
             <div className="mono" style={{ fontSize: '2rem', fontWeight: '800', color: transformerTemp > 75 ? 'var(--danger)' : '#f8fafc', margin: '0.35rem 0' }}>
-              {transformerTemp} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>°C</span>
+              {formatTemperature(transformerTemp)} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>°C</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Thermal alarm threshold: 85.0 °C
@@ -222,7 +223,7 @@ export default function GridPage() {
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Bus Voltage</div>
             <div className="mono" style={{ fontSize: '2rem', fontWeight: '800', color: '#38bdf8', margin: '0.35rem 0' }}>
-              {voltage} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>V</span>
+              {formatPower(voltage)} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>V</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Nominal: 400.0 V (±5% IEEE tolerance)
@@ -241,7 +242,7 @@ export default function GridPage() {
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Phase Current</div>
             <div className="mono" style={{ fontSize: '2rem', fontWeight: '800', color: '#34d399', margin: '0.35rem 0' }}>
-              {current} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>A</span>
+              {formatPower(current)} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>A</span>
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Peak Breaker: 160 A
