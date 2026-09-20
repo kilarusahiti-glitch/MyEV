@@ -100,26 +100,6 @@ It allows us to safely test scenarios such as **Building Peak, Solar Peak, EV Ru
 
 In a real deployment, these virtual adapters can be replaced with data from smart meters, charging infrastructure, solar inverters, and other energy systems.
 
-## 🧠 Smart Charging Example
-
-Suppose:
-
-```text
-Grid Limit       = 100 kW
-Building Demand  = 65 kW
-Solar Generation = 10 kW
-Safety Reserve   = 5 kW
-```
-
-Then:
-
-```text
-Available EV Power = 100 - 65 + 10 - 5
-                   = 40 kW
-```
-
-If connected EVs request more than 40 kW, MyEV prioritizes them according to their charging requirements and distributes only the safely available **40 kW**.
-
 ## 🏗️ Architecture
 
 ```text
