@@ -72,6 +72,7 @@ def _vehicle_view(runtime: ApplicationRuntime, vehicle_id: str) -> dict[str, Any
     vehicle_state = next(item for item in state.vehicles if item.vehicle_id == vehicle_id)
     charger = next((item for item in state.chargers if item.connected_vehicle_id == vehicle_id), None)
     session = next((item for item in state.sessions if item.vehicle_id == vehicle_id), None)
+    firebase_preferences = runtime.firebase_preferences.get(vehicle_id)
     decision = next((item for item in runtime.current_result.optimization.decisions if item.vehicle_id == vehicle_id), None) if runtime.current_result else None
     feasibility = FeasibilityEngine().analyze(state).get(session.session_id) if session else None
     explanation = next((item for item in reversed(runtime.explanation_service.explanation_history) if item.vehicle_id == vehicle_id), None)
@@ -91,7 +92,7 @@ def _vehicle_view(runtime: ApplicationRuntime, vehicle_id: str) -> dict[str, Any
         charging_status = "CHARGING"
     else:
         charging_status = "WAITING"
-    return {"vehicle_id": vehicle_id, "owner_uid": ev.vehicle.owner_uid, "owner_display_name": runtime.owner_names.get(vehicle_id), "name": ev.vehicle.name, "vehicle_type": ev.vehicle.vehicle_type.value, "battery_capacity_kwh": ev.vehicle.battery_capacity_kwh, "usable_capacity_kwh": vehicle_state.usable_capacity_kwh, "current_soc": ev.current_soc, "target_soc": session.target_soc if session else None, "minimum_readiness_soc": ev.vehicle.minimum_readiness_soc, "max_ac_power_kw": ev.vehicle.max_ac_kw, "max_dc_power_kw": ev.vehicle.max_dc_kw, "vehicle_max_power_kw": vehicle_max_kw, "charger_max_power_kw": charger.max_power_kw if charger else 0.0, "effective_max_power_kw": decision.effective_max_kw if decision else 0.0, "allocated_power_kw": decision.allocated_power_kw if decision else 0.0, "commanded_power_kw": commanded_power_kw, "actual_power_kw": actual_power_kw, "charging_status": charging_status, "plugged_in": ev.vehicle.connected, "charger_id": charger.charger_id if charger else None, "connector": charger.connector_type if charger else None, "soh_percent": ev.vehicle.estimated_soh_percent, "soh_source": ev.vehicle.soh_source.value, "estimated_consumption_kwh_per_km": ev.vehicle.estimated_consumption_kwh_per_km, "estimated_range_km": runtime.range_for(ev), "reference_range_km": ev.vehicle.estimated_range_km, "range_source": "BACKEND_USABLE_CAPACITY", "mode": session.mode if session else None, "departure": session.explicit_departure_time if session else None, "urgent": session.urgent if session else False, "priority_score": decision.priority_score if decision else None, "reason_codes": [code.value for code in decision.reason_codes] if decision else [], "feasibility": feasibility.__dict__ if feasibility else None, "trip_readiness": session.charging_requirement.model_dump(mode="json") if session and session.charging_requirement else None, "latest_explanation": explanation.model_dump(mode="json") if explanation else None}
+    return {"vehicle_id": vehicle_id, "owner_uid": ev.vehicle.owner_uid, "owner_display_name": runtime.owner_names.get(vehicle_id) or None, "owner_email": runtime.owner_emails.get(vehicle_id) or None, "name": ev.vehicle.name, "vehicle_type": ev.vehicle.vehicle_type.value, "battery_capacity_kwh": ev.vehicle.battery_capacity_kwh, "usable_capacity_kwh": vehicle_state.usable_capacity_kwh, "current_soc": ev.current_soc, "target_soc": session.target_soc if session else (firebase_preferences.target_soc if firebase_preferences else None), "minimum_readiness_soc": ev.vehicle.minimum_readiness_soc, "max_ac_power_kw": ev.vehicle.max_ac_kw, "max_dc_power_kw": ev.vehicle.max_dc_kw, "vehicle_max_power_kw": vehicle_max_kw, "charger_max_power_kw": charger.max_power_kw if charger else 0.0, "effective_max_power_kw": decision.effective_max_kw if decision else 0.0, "allocated_power_kw": decision.allocated_power_kw if decision else 0.0, "commanded_power_kw": commanded_power_kw, "actual_power_kw": actual_power_kw, "charging_status": charging_status, "plugged_in": ev.vehicle.connected, "charger_id": charger.charger_id if charger else None, "connector": charger.connector_type if charger else None, "soh_percent": ev.vehicle.estimated_soh_percent, "soh_source": ev.vehicle.soh_source.value, "estimated_consumption_kwh_per_km": ev.vehicle.estimated_consumption_kwh_per_km, "estimated_range_km": runtime.range_for(ev), "reference_range_km": ev.vehicle.estimated_range_km, "range_source": "BACKEND_USABLE_CAPACITY", "mode": session.mode if session else (firebase_preferences.charging_mode.value if firebase_preferences else None), "departure": session.explicit_departure_time if session else (firebase_preferences.departure_time if firebase_preferences else None), "urgent": session.urgent if session else (firebase_preferences.urgent if firebase_preferences else False), "priority_score": decision.priority_score if decision else None, "reason_codes": [code.value for code in decision.reason_codes] if decision else [], "feasibility": feasibility.__dict__ if feasibility else None, "trip_readiness": session.charging_requirement.model_dump(mode="json") if session and session.charging_requirement else None, "latest_explanation": explanation.model_dump(mode="json") if explanation else None}
 
 
 @router.get("/system/status", response_model=StatusResponse, summary="Get the current smart charging status")
@@ -323,6 +324,15 @@ def calendar() -> dict[str, Any]:
             "solar_opportunity": round(runtime.current_forecast.solar_opportunity if runtime.current_forecast else 0.0, 2),
         })
     return {"today": today.isoformat(), "history": history, "forecast": forecast}
+
+
+@router.get("/chargers/health-history", summary="Get hourly virtual charger sensor samples")
+def charger_health_history() -> dict[str, Any]:
+    return {
+        "sample_interval_seconds": 3600,
+        "source": "VIRTUAL_SENSORS",
+        "samples": list(_runtime().charger_health_samples),
+    }
 
 
 @router.post("/trips", summary="Create or replace a planned trip")

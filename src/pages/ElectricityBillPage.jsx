@@ -1,23 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSystemState } from '../hooks/useSystemState';
 import { calculateBilling, getTodayCostSummary, getHistoricalBills } from '../services/billingService';
 import { getOrgConfig } from '../data/organizationConfig';
+import { billPdfFilename, createBillPdf } from '../services/billingPdf';
 import { 
   Receipt, 
   Calendar, 
-  Clock, 
   Zap, 
   Building2, 
   Car, 
   Sun, 
   TrendingDown, 
-  ShieldCheck, 
-  AlertCircle, 
   Sliders, 
   Printer, 
   Download, 
-  IndianRupee,
   CheckCircle2,
   FileText
 } from 'lucide-react';
@@ -29,13 +26,13 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer, 
-  LineChart, 
-  Line 
+  ResponsiveContainer
 } from 'recharts';
 
 export default function ElectricityBillPage() {
   const systemState = useSystemState();
+  const [pdfAction, setPdfAction] = useState(null);
+  const [pdfError, setPdfError] = useState('');
   const { tariffSettings, organizationMode } = systemState;
   const org = getOrgConfig(organizationMode);
 
@@ -52,8 +49,48 @@ export default function ElectricityBillPage() {
     return getHistoricalBills(bill);
   }, [bill]);
 
-  const handlePrint = () => {
-    window.print();
+  const billSource = systemState.backendStatus === 'LIVE'
+    ? 'Calculated from backend virtual sensor telemetry'
+    : 'Calculated from local simulation telemetry';
+
+  const handleDownload = async () => {
+    setPdfAction('download');
+    setPdfError('');
+    try {
+      const pdf = await createBillPdf(bill, org, billSource);
+      pdf.save(billPdfFilename(bill));
+    } catch {
+      setPdfError('Could not generate the bill PDF. Please try again.');
+    } finally {
+      setPdfAction(null);
+    }
+  };
+
+  const handlePrint = async () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setPdfError('Allow pop-ups to open the bill PDF for printing.');
+      return;
+    }
+    setPdfAction('print');
+    setPdfError('');
+    try {
+      const pdf = await createBillPdf(bill, org, billSource);
+      const url = URL.createObjectURL(pdf.output('blob'));
+      printWindow.location.href = url;
+      window.setTimeout(() => {
+        if (!printWindow.closed) {
+          printWindow.focus();
+          printWindow.print();
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }, 1600);
+    } catch {
+      printWindow.close();
+      setPdfError('Could not prepare the bill PDF for printing. Please try again.');
+    } finally {
+      setPdfAction(null);
+    }
   };
 
   return (
@@ -72,10 +109,14 @@ export default function ElectricityBillPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button onClick={handlePrint} className="btn btn-sm" title="Print statement">
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={handlePrint} className="btn btn-sm" title="Open and print the generated bill PDF" disabled={pdfAction !== null}>
             <Printer size={15} />
-            <span>Print Bill</span>
+            <span>{pdfAction === 'print' ? 'Preparing PDF...' : 'Print Bill'}</span>
+          </button>
+          <button onClick={handleDownload} className="btn btn-sm" title="Download detailed bill PDF" disabled={pdfAction !== null}>
+            <Download size={15} />
+            <span>{pdfAction === 'download' ? 'Generating PDF...' : 'Download PDF'}</span>
           </button>
           <Link to="/settings" className="btn btn-sm btn-primary">
             <Sliders size={15} />
@@ -83,6 +124,7 @@ export default function ElectricityBillPage() {
           </Link>
         </div>
       </div>
+      {pdfError && <div role="alert" className="badge badge-warning" style={{ alignSelf: 'flex-start', padding: '0.65rem 0.8rem' }}>{pdfError}</div>}
 
       {/* Primary KPI Highlights Row */}
       <div style={{
@@ -436,7 +478,7 @@ export default function ElectricityBillPage() {
               </tr>
             </thead>
             <tbody>
-              {historicalBills.map((h, i) => (
+              {historicalBills.map((h) => (
                 <tr key={h.month} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', background: h.isCurrent ? 'rgba(16, 185, 129, 0.05)' : 'transparent' }}>
                   <td style={{ padding: '0.6rem 0.5rem', fontWeight: h.isCurrent ? '700' : '500' }}>
                     {h.month} 2026 {h.isCurrent && <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Current</span>}

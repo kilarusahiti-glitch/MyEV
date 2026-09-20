@@ -15,6 +15,7 @@ class PersistenceRepository(Protocol):
     def save_event(self, record: dict[str, Any]) -> None: ...
     def load_vehicle_records(self) -> list[dict[str, Any]]: ...
     def load_user_records(self) -> dict[str, dict[str, Any]]: ...
+    def set_all_vehicle_connections(self, connected: bool) -> int: ...
     def save_optimization_result(self, record: dict[str, Any]) -> None: ...
 
 
@@ -46,6 +47,9 @@ class InMemoryPersistenceRepository:
     def load_user_records(self) -> dict[str, dict[str, Any]]:
         return {}
 
+    def set_all_vehicle_connections(self, connected: bool) -> int:
+        return 0
+
     def save_optimization_result(self, record: dict[str, Any]) -> None:
         self._results[str(record["session_id"])] = dict(record)
 
@@ -63,8 +67,11 @@ class FirebasePersistenceRepository:
         self._client = None
         self._last_result_write = 0.0
         self._result_cache: dict[str, tuple[str, float]] = {}
+        self._user_records_cache: dict[str, dict[str, Any]] = {}
+        self._user_records_loaded_at = 0.0
         try:
             import firebase_admin
+            from firebase_admin import auth
             from firebase_admin import credentials, firestore
 
             try:
@@ -84,6 +91,8 @@ class FirebasePersistenceRepository:
                     {key: value for key, value in options.items() if value},
                 )
             self._client = firestore.client(firebase_app)
+            self._firebase_app = firebase_app
+            self._auth = auth
             LOGGER.info("Persistence: Firebase")
         except Exception as exc:  # pragma: no cover - depends on optional deployment SDK
             LOGGER.warning("Firebase persistence unavailable; using memory fallback: %s", exc)
@@ -138,14 +147,40 @@ class FirebasePersistenceRepository:
     def load_user_records(self) -> dict[str, dict[str, Any]]:
         if self._client is None:
             return self._fallback.load_user_records()
+        if time.monotonic() - self._user_records_loaded_at < 60:
+            return self._user_records_cache
         try:  # pragma: no cover - network dependent
-            return {
+            records = {
                 item.id: (item.to_dict() or {})
                 for item in self._client.collection("users").stream()
             }
+            page = self._auth.list_users(app=self._firebase_app)
+            while page:
+                for user in page.users:
+                    auth_record = {"display_name": user.display_name, "email": user.email}
+                    records[user.uid] = {**auth_record, **records.get(user.uid, {})}
+                page = page.get_next_page()
+            self._user_records_cache = records
+            self._user_records_loaded_at = time.monotonic()
+            return records
         except Exception as exc:
             LOGGER.warning("Firebase user read failed: %s", exc)
             return self._fallback.load_user_records()
+
+    def set_all_vehicle_connections(self, connected: bool) -> int:
+        if self._client is None:
+            raise RuntimeError("Firebase is unavailable; vehicle connection state was not written")
+        documents = list(self._client.collection("vehicles").stream())
+        batch = self._client.batch()
+        for document in documents:
+            batch.update(document.reference, {
+                "connected": connected,
+                "plugged_in": connected,
+                "charging_status": "CONNECTED" if connected else "DISCONNECTED",
+            })
+        if documents:
+            batch.commit(timeout=15)
+        return len(documents)
 
     def save_optimization_result(self, record: dict[str, Any]) -> None:
         self._fallback.save_optimization_result(record)

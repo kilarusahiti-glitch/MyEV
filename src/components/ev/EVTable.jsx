@@ -115,6 +115,9 @@ export default function EVTable({ vehicles, onSelectVehicle, selectedVehicleId }
                       <span className="mono" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                         {ev.id} • {ev.licensePlate}
                       </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                        Owner: {ev.owner_display_name || ev.ownerName || 'Unavailable'}
+                      </span>
                     </div>
                   </td>
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import router, ws_router
+from app.api.router import _status, router, ws_router
 from app.api.schemas import HealthResponse
 from app.services.runtime import ApplicationRuntime
 
@@ -18,10 +20,57 @@ def _allowed_origins() -> list[str]:
     return [origin.strip() for origin in configured.split(",") if origin.strip()]
 
 
+def _firebase_sync_interval() -> float:
+    try:
+        return max(5.0, float(os.getenv("FIREBASE_SYNC_INTERVAL_SECONDS", "7")))
+    except ValueError:
+        return 7.0
+
+
+async def _firebase_sync_loop() -> None:
+    while True:
+        await asyncio.sleep(_firebase_sync_interval())
+        try:
+            changed = await asyncio.to_thread(runtime.sync_firebase_vehicles)
+            if changed:
+                await runtime.websocket_manager.broadcast("vehicles_updated", _status(runtime))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Firebase is secondary persistence; the main control loop remains alive.
+            continue
+
+
+async def _charger_health_sample_loop() -> None:
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            await asyncio.to_thread(runtime.record_charger_health_sample)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            continue
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    tasks = [
+        asyncio.create_task(_firebase_sync_loop()),
+        asyncio.create_task(_charger_health_sample_loop()),
+    ]
+    try:
+        yield
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
 app = FastAPI(
     title="VoltFlow Smart EV Charging Backend",
     version="1.0.0",
     description="Authoritative virtual charging cluster, optimization, and integration API.",
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,

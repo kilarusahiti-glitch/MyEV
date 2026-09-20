@@ -51,11 +51,10 @@ class ApplicationRuntime:
         self.sessions = sessions
         self.simulation_engine = SimulationEngine(SimulationClock(now), VirtualBuilding(58.0, variation_kw=0.0, seed=7), VirtualSolar(35.0, cloud_factor=0.7), VirtualTariff(), virtual_chargers, build_demo_site_config(), evs=list(virtual_by_id.values()))
         self.owner_names: dict[str, str] = {}
-        imported = self._import_firebase_assets(now)
-        if imported is not None:
-            imported_evs, imported_chargers, imported_sessions = imported
-            self.simulation_engine.replace_physical_assets(imported_evs, imported_chargers)
-            self.sessions = imported_sessions
+        self.owner_emails: dict[str, str] = {}
+        self.firebase_preferences: dict[str, ImportedVehicle] = {}
+        self.charger_health_samples: list[dict[str, Any]] = []
+        self._last_charger_health_sample_at: datetime | None = None
         self.optimizer = OptimizationEngine()
         self.energy_history = EnergyHistoryStore()
         self.forecast_engine = ForecastEngine(self.energy_history, tariff=self.simulation_engine.tariff)
@@ -79,61 +78,115 @@ class ApplicationRuntime:
         self.session_started_at: dict[str, datetime] = {key: value.arrival_time for key, value in self.sessions.items()}
         self.run_control_cycle(0.0)
         self.run_control_cycle(1.0)
+        self.sync_firebase_vehicles()
+        self.record_charger_health_sample()
 
-    def _import_firebase_assets(
-        self,
-        now: datetime,
-    ) -> tuple[list[VirtualEV], list[VirtualCharger], dict[str, ChargingSession]] | None:
-        """Use usable cloud vehicles while retaining the complete demo fallback."""
+    def sync_firebase_vehicles(self) -> bool:
+        """Merge valid Firebase vehicles without replacing live/demo assets.
+
+        Cloud connection state is mirrored, but cloud registration alone does
+        not create a charger assignment, session, or power allocation.
+        """
         try:
             records = self.persistence.load_vehicle_records()
             users = self.persistence.load_user_records()
         except Exception as exc:  # pragma: no cover - defensive for custom repositories
             import logging
             logging.getLogger(__name__).warning("Firebase vehicle import skipped: %s", exc)
-            return None
+            return False
 
-        imported: list[ImportedVehicle] = []
+        changed = False
         seen: set[str] = set()
         for record in records:
             item = map_vehicle_record(record, user_records=users)
-            if item and item.vehicle.id not in seen:
-                imported.append(item)
-                seen.add(item.vehicle.id)
-                if item.display_name:
-                    self.owner_names[item.vehicle.id] = item.display_name
-        if not imported:
-            return None
+            if not item or item.vehicle.id in seen:
+                continue
+            seen.add(item.vehicle.id)
+            self.firebase_preferences[item.vehicle.id] = item
+            if item.display_name != self.owner_names.get(item.vehicle.id):
+                self.owner_names[item.vehicle.id] = item.display_name or ""
+                changed = True
+            self.owner_emails[item.vehicle.id] = item.owner_email or ""
+            ev = self.vehicle(item.vehicle.id)
+            if ev is None:
+                self.simulation_engine.evs.append(VirtualEV(item.vehicle))
+                changed = True
+                continue
 
-        available = build_demo_chargers()
-        used: set[str] = set()
-        evs = [VirtualEV(item.vehicle) for item in imported]
-        ev_by_id = {ev.vehicle.id: ev for ev in evs}
-        sessions: dict[str, ChargingSession] = {}
-        chargers: list[VirtualCharger] = []
-        for item in imported:
-            if item.target_soc is None or not item.vehicle.connected:
-                continue
-            charger = _select_charger(item, available, used)
-            if charger is None:
-                continue
-            vehicle = item.vehicle
-            session = ChargingSession(
-                id=f"session-{vehicle.id}",
-                vehicle_id=vehicle.id,
-                charger_id=charger.id,
-                target_soc=item.target_soc,
-                arrival_time=now,
-                explicit_departure_time=item.departure_time,
-                charging_mode=item.charging_mode,
-                urgent=item.urgent,
-                effective_max_kw=0.0,
+            # Firebase owns profile/capability data; live SOC/connection state
+            # remains under the physical backend control loop.
+            profile_fields = (
+                "owner_uid", "name", "vehicle_type", "battery_capacity_kwh",
+                "max_ac_kw", "max_dc_kw", "connector_types",
+                "estimated_range_km", "minimum_readiness_soc",
+                "estimated_consumption_kwh_per_km", "connected",
             )
-            virtual_charger = VirtualCharger(charger)
-            if virtual_charger.connect(ev_by_id[vehicle.id], session):
-                chargers.append(virtual_charger)
-                sessions[session.id] = session
-        return evs, chargers, sessions
+            for field in profile_fields:
+                incoming = getattr(item.vehicle, field)
+                if getattr(ev.vehicle, field) != incoming:
+                    setattr(ev.vehicle, field, incoming)
+                    changed = True
+            session = next((value for value in self.sessions.values() if value.vehicle_id == item.vehicle.id), None)
+            if session is not None:
+                session_fields = {
+                    "target_soc": item.target_soc,
+                    "explicit_departure_time": item.departure_time,
+                    "charging_mode": item.charging_mode,
+                    "urgent": item.urgent,
+                }
+                for field, incoming in session_fields.items():
+                    if incoming is not None and getattr(session, field) != incoming:
+                        setattr(session, field, incoming)
+                        changed = True
+
+        if changed:
+            self.simulation_engine.rebuild_telemetry_gateway()
+            self.run_control_cycle(0.0)
+        return changed
+
+    def record_charger_health_sample(self, sampled_at: datetime | None = None) -> bool:
+        """Capture a bounded hourly snapshot from the virtual charger sensors."""
+        timestamp = sampled_at or datetime.now(UTC)
+        if self._last_charger_health_sample_at and (
+            timestamp - self._last_charger_health_sample_at
+        ).total_seconds() < 3600:
+            return False
+
+        readings = self.simulation_engine.telemetry_gateway.collect(timestamp)
+        by_sensor = {reading.sensor_id: reading for reading in readings}
+        state = self.get_current_state()
+        chargers: list[dict[str, Any]] = []
+        for charger in state.chargers:
+            key = charger.charger_id.upper()
+            power_reading = by_sensor.get(f"CHARGER_{key}")
+            status_reading = by_sensor.get(f"CHARGER_STATUS_{key}")
+            quality_readings = [item for item in (power_reading, status_reading) if item]
+            quality = (
+                "GOOD"
+                if len(quality_readings) == 2 and all(item.quality.value == "GOOD" for item in quality_readings)
+                else "UNAVAILABLE" if not quality_readings else "DEGRADED"
+            )
+            chargers.append({
+                "charger_id": charger.charger_id,
+                "status": status_reading.value if status_reading else charger.status,
+                "actual_power_kw": power_reading.value if power_reading else charger.actual_delivered_power_kw,
+                "max_power_kw": charger.max_power_kw,
+                "connector_type": charger.connector_type,
+                "connected_vehicle_id": charger.connected_vehicle_id,
+                "power_sensor_id": power_reading.sensor_id if power_reading else None,
+                "status_sensor_id": status_reading.sensor_id if status_reading else None,
+                "quality": quality,
+            })
+
+        self.charger_health_samples.append({
+            "sampled_at": timestamp.isoformat(),
+            "simulated_at": state.timestamp.isoformat(),
+            "source": "VIRTUAL_SENSORS",
+            "chargers": chargers,
+        })
+        self.charger_health_samples = self.charger_health_samples[-168:]
+        self._last_charger_health_sample_at = timestamp
+        return True
 
     def run_control_cycle(self, delta_real_seconds: float = 1.0) -> SmartChargingCycleResult:
         result = self.coordinator.cycle(delta_real_seconds)

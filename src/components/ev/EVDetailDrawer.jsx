@@ -196,8 +196,13 @@ export default function EVDetailDrawer({
               <span>Resident</span>
             </div>
             <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {vehicle.ownerName || 'Building Resident'}
+              {vehicle.owner_display_name || vehicle.ownerName || 'Owner unavailable'}
             </div>
+            {vehicle.owner_email && (
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {vehicle.owner_email}
+              </div>
+            )}
             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
               Plugged: {vehicle.pluggedInAt || 'Evening'}
             </div>

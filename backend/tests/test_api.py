@@ -100,3 +100,13 @@ def test_calendar_has_labelled_history_and_forecast() -> None:
     assert len(payload["forecast"]) == 7
     assert {item["label"] for item in payload["history"]} == {"SIMULATED HISTORY"}
     assert {item["label"] for item in payload["forecast"]} == {"FORECAST"}
+
+
+def test_charger_health_history_returns_hourly_virtual_sensor_sample() -> None:
+    response = client.get("/api/chargers/health-history")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sample_interval_seconds"] == 3600
+    assert payload["source"] == "VIRTUAL_SENSORS"
+    assert payload["samples"]
+    assert payload["samples"][-1]["chargers"]

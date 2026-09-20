@@ -23,6 +23,7 @@ class ImportedVehicle:
     urgent: bool
     charger_id: str | None
     display_name: str | None
+    owner_email: str | None
 
 
 def map_vehicle_record(
@@ -37,23 +38,26 @@ def map_vehicle_record(
     """
 
     vehicle_id = _text(record, "vehicle_id", "id") or _text(record, "_document_id")
+    owner_uid = _text(record, "owner_uid", "ownerUid", "user_id", "userId")
     name = _text(record, "vehicle_name", "name")
+    if not name:
+        name = " ".join(part for part in (_text(record, "manufacturer", "make"), _text(record, "model")) if part) or None
     capacity = _number(record, "battery_capacity_kwh", "batteryCapacity")
     soc = _number(record, "current_soc", "soc", "currentSoc")
     estimated_range = _number(record, "estimated_range_km", "estimatedRangeKm")
-    max_ac = _number(record, "max_ac_kw", "vehicle_max_ac_kw", "maxChargingPower", "max_power_kw")
-    max_dc = _number(record, "max_dc_kw", "vehicle_max_dc_kw", "dc_max_kw") or 0.0
-    if not vehicle_id or not name or capacity is None or soc is None or estimated_range is None or max_ac is None:
+    max_ac = _number(record, "max_ac_kw", "vehicle_max_ac_kw", "ac_charging_power_kw", "vehicle_max_kw", "maxChargingPower", "max_charging_power_kw", "max_power_kw")
+    max_dc = _number(record, "max_dc_kw", "vehicle_max_dc_kw", "dc_charging_power_kw", "dc_max_kw") or 0.0
+    if not vehicle_id or not owner_uid or not name or capacity is None or soc is None or estimated_range is None or max_ac is None:
         return None
 
     try:
         vehicle_type = VehicleType(str(record.get("vehicle_type", record.get("vehicleType", "CAR"))).upper())
-        connectors = _connectors(record.get("connector_types") or record.get("connectorTypes") or record.get("connector_type"))
+        connectors = _connectors(record.get("connector_types") or record.get("connectorTypes") or record.get("connector_type") or record.get("connector"))
         if not connectors:
             return None
         vehicle = Vehicle(
             id=vehicle_id,
-            owner_uid=_text(record, "owner_uid", "ownerUid", "user_id", "userId"),
+            owner_uid=owner_uid,
             name=name,
             vehicle_type=vehicle_type,
             battery_capacity_kwh=capacity,
@@ -62,27 +66,32 @@ def map_vehicle_record(
             connector_types=connectors,
             current_soc=soc,
             estimated_range_km=estimated_range,
-            connected=bool(record.get("connected", record.get("pluggedIn", record.get("charger_id", record.get("chargerId"))))),
+            connected=any(bool(record.get(key)) for key in ("connected", "plugged_in", "pluggedIn", "charger_id", "chargerId")),
             minimum_readiness_soc=_number(record, "minimum_readiness_soc", "minimumReadinessSoc") or 30.0,
             estimated_consumption_kwh_per_km=_number(record, "estimated_consumption_kwh_per_km") or 0.15,
         )
     except (TypeError, ValueError):
         return None
 
-    owner_uid = vehicle.owner_uid
     display_name = None
+    owner_email = None
     if owner_uid and user_records:
         owner = user_records.get(owner_uid, {})
         display_name = _text(owner, "display_name", "displayName", "name")
+        owner_email = _text(owner, "email")
+    target_soc = _number(record, "target_soc", "targetSoc")
+    if target_soc is not None and not 0 < target_soc <= 100:
+        return None
     return ImportedVehicle(
         vehicle=vehicle,
         owner_uid=owner_uid,
-        target_soc=_number(record, "target_soc", "targetSoc"),
+        target_soc=target_soc,
         departure_time=_datetime(record.get("departure_time") or record.get("departureTime")),
         charging_mode=_mode(record.get("charging_mode") or record.get("chargingMode")),
         urgent=bool(record.get("urgent", record.get("charge_faster", record.get("chargeFaster", False)))),
         charger_id=_text(record, "charger_id", "chargerId"),
         display_name=display_name,
+        owner_email=owner_email,
     )
 
 
